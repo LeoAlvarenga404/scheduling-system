@@ -7,6 +7,8 @@ export interface AppointmentProps {
   professionalId: string;
   scheduledAt: Date;
   status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
+  createdAt: Date;
+  updatedAt?: Date;
 }
 
 export class Appointment extends Entity<AppointmentProps> {
@@ -28,6 +30,22 @@ export class Appointment extends Entity<AppointmentProps> {
 
   get status() {
     return this.props.status;
+  }
+
+  cancelAppointment() {
+    this.changeStatus("CANCELLED");
+    this.touch();
+  }
+
+  private changeStatus(
+    status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED",
+  ) {
+    this.props.status = status;
+    this.touch();
+  }
+
+  private touch() {
+    this.props.updatedAt = new Date();
   }
 
   static create(_props: AppointmentProps, id?: UniqueEntityID) {

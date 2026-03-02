@@ -1,12 +1,13 @@
 import { Entity } from "../core/entities/entity";
 import { UniqueEntityID } from "../core/entities/unique-entity-id";
+import { AppointmentStatus } from "../value-objects/appointment-status.vo";
 
 export interface AppointmentProps {
   tenantId: string;
   customerId: string;
   professionalId: string;
   scheduledAt: Date;
-  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
+  status: AppointmentStatus;
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -33,14 +34,22 @@ export class Appointment extends Entity<AppointmentProps> {
   }
 
   cancelAppointment() {
-    this.changeStatus("CANCELLED");
+    this.status.changeTo("CANCELLED");
     this.touch();
   }
 
-  private changeStatus(
-    status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED",
-  ) {
-    this.props.status = status;
+  confirmAppointment() {
+    this.status.changeTo("CONFIRMED");
+    this.touch();
+  }
+
+  completeAppointment() {
+    this.status.changeTo("COMPLETED");
+    this.touch();
+  }
+
+  reschedule(date: Date) {
+    this.props.scheduledAt = date;
     this.touch();
   }
 

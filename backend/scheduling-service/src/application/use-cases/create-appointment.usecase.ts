@@ -32,6 +32,7 @@ export class CreateAppointmentUseCase implements UseCase<
       scheduledAt,
       status,
       tenantId,
+      
     });
 
     await this.appointmentRepository.createAppointment(appointment);

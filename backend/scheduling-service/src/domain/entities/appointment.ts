@@ -8,7 +8,7 @@ export interface AppointmentProps {
   professionalId: string;
   scheduledAt: Date;
   status: AppointmentStatus;
-  createdAt: Date;
+  createdAt?: Date;
   updatedAt?: Date;
 }
 
@@ -58,7 +58,10 @@ export class Appointment extends Entity<AppointmentProps> {
   }
 
   static create(_props: AppointmentProps, id?: UniqueEntityID) {
-    const appointment = new Appointment({ ..._props }, id);
+    const appointment = new Appointment(
+      { ..._props, createdAt: _props.createdAt ?? new Date() },
+      id,
+    );
 
     return appointment;
   }

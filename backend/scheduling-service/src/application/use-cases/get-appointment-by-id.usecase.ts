@@ -5,28 +5,31 @@ import { AppointmentNotFoundError } from "src/domain/errors/appointment-not-foun
 import { TenantMismatchError } from "src/domain/errors/tenant-mismatch.error";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 
-export interface GetAppointmentByIdTenantIdRequest {
+export interface GetAppointmentByIdRequest {
   appointmentId: string;
   tenantId: string;
 }
 
-export type GetAppointmentByIdTenantIdOutput = Either<
+export type GetAppointmentByIdOutput = Either<
   AppointmentNotFoundError | TenantMismatchError,
   {
     appointment: Appointment;
   }
 >;
 
-export class GetAppointmentByIdTenantIdUseCase implements UseCase<
-  GetAppointmentByIdTenantIdRequest,
-  GetAppointmentByIdTenantIdOutput
+export class GetAppointmentByIdUseCase implements UseCase<
+  GetAppointmentByIdRequest,
+  GetAppointmentByIdOutput
 > {
   constructor(private appointmentRepository: AppointmentRepository) {}
   async execute({
     appointmentId,
-  }: GetAppointmentByIdTenantIdRequest): Promise<GetAppointmentByIdTenantIdOutput> {
-    const appointment =
-      await this.appointmentRepository.getAppointmentById(appointmentId);
+    tenantId,
+  }: GetAppointmentByIdRequest): Promise<GetAppointmentByIdOutput> {
+    const appointment = await this.appointmentRepository.getAppointmentById(
+      appointmentId,
+      tenantId,
+    );
 
     if (!appointment) {
       return left(new AppointmentNotFoundError());

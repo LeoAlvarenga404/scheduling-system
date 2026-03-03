@@ -6,7 +6,8 @@ export interface AppointmentProps {
   tenantId: string;
   customerId: string;
   professionalId: string;
-  scheduledAt: Date;
+  startDate: Date;
+  endDate: Date;
   status: AppointmentStatus;
   createdAt?: Date;
   updatedAt?: Date;
@@ -25,8 +26,22 @@ export class Appointment extends Entity<AppointmentProps> {
     return this.props.professionalId;
   }
 
-  get scheduledAt() {
-    return this.props.scheduledAt;
+  get startDate() {
+    return this.props.startDate;
+  }
+
+  get endDate() {
+    return this.props.endDate;
+  }
+
+  set startDate(date: Date) {
+    this.props.startDate = date;
+    this.touch();
+  }
+
+  set endDate(date: Date) {
+    this.props.endDate = date;
+    this.touch();
   }
 
   get status() {
@@ -48,8 +63,13 @@ export class Appointment extends Entity<AppointmentProps> {
     this.touch();
   }
 
-  reschedule(date: Date) {
-    this.props.scheduledAt = date;
+  reschedule({ startDate, endDate }: { startDate: Date; endDate: Date }) {
+    if (!startDate || !endDate) {
+      throw new Error("startDate or endDate is mandatory");
+    }
+
+    this.props.startDate = startDate;
+    this.props.endDate = endDate;
     this.touch();
   }
 

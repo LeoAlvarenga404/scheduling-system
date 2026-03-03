@@ -20,19 +20,23 @@ export class CreateAppointmentUseCase implements UseCase<
   async execute({
     customerId,
     professionalId,
-    scheduledAt,
+    startDate,
+    endDate,
     tenantId,
     status,
   }: CreateAppointmentRequest): Promise<CreateAppointmentOutput> {
     let appointment;
 
+    
+    
+
     appointment = Appointment.create({
       customerId,
       professionalId,
-      scheduledAt,
+      startDate,
+      endDate,
       status,
       tenantId,
-      
     });
 
     await this.appointmentRepository.createAppointment(appointment);

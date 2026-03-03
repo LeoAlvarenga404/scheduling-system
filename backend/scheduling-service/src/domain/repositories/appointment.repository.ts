@@ -5,6 +5,7 @@ export abstract class AppointmentRepository {
   abstract listAppointmentByTenantId(tenantId: string): Promise<Appointment[]>;
   abstract getAppointmentById(
     appointmentId: string,
+    tenantId: string,
   ): Promise<Appointment | null>;
   abstract cancelAppointment(appointmentId: string): Promise<void>;
   abstract confirmAppointment(appointmentId: string): Promise<void>;
@@ -12,9 +13,11 @@ export abstract class AppointmentRepository {
   abstract update(appointment: Appointment): Promise<void>;
   abstract rescheduleAppointment({
     appointmentId,
-    newScheduleDate,
+    newStartDate,
+    newEndDate,
   }: {
     appointmentId: string;
-    newScheduleDate: Date;
-  });
+    newStartDate: Date;
+    newEndDate: Date;
+  }): Promise<void>;
 }

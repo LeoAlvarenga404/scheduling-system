@@ -6,7 +6,8 @@ import { AppointmentRepository } from "src/domain/repositories/appointment.repos
 
 export interface RescheduleAppointmentRequest {
   appointmentId: string;
-  newScheduleDate: Date;
+  newStartDate: Date;
+  newEndDate: Date;
   tenantId: string;
 }
 
@@ -23,10 +24,13 @@ export class RescheduleAppointmentUseCase implements UseCase<
   async execute({
     appointmentId,
     tenantId,
-    newScheduleDate,
+    newStartDate,
+    newEndDate,
   }: RescheduleAppointmentRequest): Promise<RescheduleAppointmentOutput> {
-    const appointment =
-      await this.appointmentRepository.getAppointmentById(appointmentId);
+    const appointment = await this.appointmentRepository.getAppointmentById(
+      appointmentId,
+      tenantId,
+    );
 
     if (appointment?.tenantId !== tenantId) {
       return left(new TenantMismatchError());
@@ -35,7 +39,10 @@ export class RescheduleAppointmentUseCase implements UseCase<
       return left(new AppointmentNotFoundError());
     }
 
-    appointment.reschedule(newScheduleDate);
+    appointment.reschedule({
+      startDate: newStartDate,
+      endDate: newEndDate,
+    });
 
     await this.appointmentRepository.update(appointment);
 

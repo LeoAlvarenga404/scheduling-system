@@ -1,6 +1,7 @@
 import { Either, right } from "src/domain/core/entities/either";
 import { UseCase } from "src/domain/core/entities/use-case";
 import { Appointment } from "src/domain/entities/appointment";
+import { TenantMismatchError } from "src/domain/errors/tenant-mismatch.error";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 
 export interface ListAppointmentByTenantIdRequest {
@@ -8,7 +9,7 @@ export interface ListAppointmentByTenantIdRequest {
 }
 
 export type ListAppointmentByTenantIdOutput = Either<
-  {},
+  TenantMismatchError,
   {
     appointments: Appointment[];
   }

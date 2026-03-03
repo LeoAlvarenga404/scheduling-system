@@ -23,8 +23,10 @@ export class CompleteAppointmentUseCase implements UseCase<
     appointmentId,
     tenantId,
   }: CompleteAppointmentRequest): Promise<CompleteAppointmentOutput> {
-    const appointment =
-      await this.appointmentRepository.getAppointmentById(appointmentId);
+    const appointment = await this.appointmentRepository.getAppointmentById(
+      appointmentId,
+      tenantId,
+    );
 
     if (appointment?.tenantId !== tenantId) {
       return left(new TenantMismatchError());

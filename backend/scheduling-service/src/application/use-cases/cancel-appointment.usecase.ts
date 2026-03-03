@@ -23,8 +23,10 @@ export class CancelAppointmentUseCase implements UseCase<
     appointmentId,
     tenantId,
   }: CancelAppointmentRequest): Promise<CancelAppointmentOutput> {
-    const appointment =
-      await this.appointmentRepository.getAppointmentById(appointmentId);
+    const appointment = await this.appointmentRepository.getAppointmentById(
+      appointmentId,
+      tenantId,
+    );
 
     if (appointment?.tenantId !== tenantId) {
       return left(new TenantMismatchError());

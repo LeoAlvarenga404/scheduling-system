@@ -1,21 +1,20 @@
-import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
-import { GetAppointmentByIdUseCase } from "./get-appointment-by-id.usecase";
 import { beforeEach, describe, expect, it } from "vitest";
-import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
 import { Appointment } from "src/domain/entities/appointment";
+import { TenantMismatchError } from "src/domain/errors/tenant-mismatch.error";
 import { AppointmentStatus } from "src/domain/value-objects/appointment-status.vo";
-import { AppointmentNotFoundError } from "src/domain/errors/appointment-not-found.error";
+import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
+import { CancelAppointmentUseCase } from "./cancel-appointment.usecase";
 
-let sut: GetAppointmentByIdUseCase;
+let sut: CancelAppointmentUseCase;
 let appointmentRepository: InMemoryAppointmentRepository;
 
-describe("Get Appointment By Id", () => {
+describe("Cancel Appointment", () => {
   beforeEach(() => {
     appointmentRepository = new InMemoryAppointmentRepository();
-    sut = new GetAppointmentByIdUseCase(appointmentRepository);
+    sut = new CancelAppointmentUseCase(appointmentRepository);
   });
 
-  it("should be able to get an appointment by id", async () => {
+  it("should be able to cancel an appointment", async () => {
     const appointment = Appointment.create({
       customerId: "customer-id",
       endDate: new Date(),
@@ -32,23 +31,17 @@ describe("Get Appointment By Id", () => {
       tenantId: "tenant-01",
     });
 
-    if (response.isRight()) {
-      expect(response.value.appointment).toBeInstanceOf(Appointment);
-    }
-
-    expect(appointmentRepository.items[0].professionalId).toBe(
-      "professional-id",
-    );
+    expect(response.isRight()).toBe(true);
     expect(appointmentRepository.items.length).toBe(1);
   });
 
-  it("should return empty if not exists appointment", async () => {
+  it("should return error when appointment does not exist", async () => {
     const appointment = Appointment.create({
       customerId: "customer-id",
       endDate: new Date(),
       startDate: new Date(),
       professionalId: "professional-id",
-      status: AppointmentStatus.create(),
+      status: AppointmentStatus.create("PENDING"),
       tenantId: "tenant-01",
     });
 
@@ -60,8 +53,6 @@ describe("Get Appointment By Id", () => {
     });
 
     expect(response.isRight()).toBe(false);
-
-    expect(response.value).toBeInstanceOf(AppointmentNotFoundError);
-    expect(appointmentRepository.items.length).toBe(1);
+    expect(response.value).toBeInstanceOf(TenantMismatchError);
   });
 });

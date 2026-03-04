@@ -7,14 +7,19 @@ export interface AppointmentStatusProps {
 }
 
 export class AppointmentStatus extends ValueObject<AppointmentStatusProps> {
-  get status(): Status {
+  private constructor(props: AppointmentStatusProps) {
+    super(props);
+  }
+
+  get value(): Status {
     return this.props.status;
   }
 
-  changeTo(status: Status) {
-    this.props.status = status;
+  static create(status: Status = "PENDING") {
+    return new AppointmentStatus({ status });
   }
-  static create(status: Status) {
+
+  changeTo(status: Status): AppointmentStatus {
     return new AppointmentStatus({ status });
   }
 }

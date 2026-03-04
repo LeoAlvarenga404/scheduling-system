@@ -1,44 +1,63 @@
 import { Either, left, right } from "src/domain/core/entities/either";
 import { UseCase } from "src/domain/core/entities/use-case";
+import { Appointment } from "src/domain/entities/appointment";
 import { AppointmentNotFoundError } from "src/domain/errors/appointment-not-found.error";
-import { TenantMismatchError } from "src/domain/errors/tenant-mismatch.error";
+import { InvalidAppointmentStateError } from "src/domain/errors/invalid-appointment-state.error";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 
 export interface CancelAppointmentRequest {
   appointmentId: string;
   tenantId: string;
+  reason?: string;
+  cancelledBy?: string;
 }
 
 export type CancelAppointmentOutput = Either<
-  AppointmentNotFoundError | TenantMismatchError,
-  void
+  AppointmentNotFoundError | InvalidAppointmentStateError,
+  {
+    appointment: Appointment;
+  }
 >;
 
-export class CancelAppointmentUseCase implements UseCase<
-  CancelAppointmentRequest,
-  CancelAppointmentOutput
-> {
+export class CancelAppointmentUseCase
+  implements UseCase<CancelAppointmentRequest, CancelAppointmentOutput>
+{
   constructor(private appointmentRepository: AppointmentRepository) {}
+
   async execute({
     appointmentId,
     tenantId,
+    reason,
+    cancelledBy,
   }: CancelAppointmentRequest): Promise<CancelAppointmentOutput> {
     const appointment = await this.appointmentRepository.getAppointmentById(
       appointmentId,
       tenantId,
     );
 
-    if (appointment?.tenantId !== tenantId) {
-      return left(new TenantMismatchError());
-    }
     if (!appointment) {
       return left(new AppointmentNotFoundError());
     }
 
-    appointment.cancelAppointment();
+    if (appointment.status.value === "CANCELLED") {
+      return right({ appointment });
+    }
 
-    await this.appointmentRepository.cancelAppointment(appointmentId);
+    if (appointment.status.value === "EXPIRED") {
+      return right({ appointment });
+    }
 
-    return right(undefined);
+    if (appointment.status.value !== "HOLD" && appointment.status.value !== "CONFIRMED") {
+      return left(
+        new InvalidAppointmentStateError(
+          "Only HOLD or CONFIRMED appointments can be cancelled.",
+        ),
+      );
+    }
+
+    appointment.cancel({ reason, cancelledBy });
+    await this.appointmentRepository.updateAppointment(appointment);
+
+    return right({ appointment });
   }
 }

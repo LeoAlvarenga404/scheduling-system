@@ -32,7 +32,7 @@ describe("Reschedule Appointment Use Case", () => {
 
     expect(response.isRight()).toBe(true);
     expect(appointment.status.value).toBe("HOLD");
-    expect(appointment.roomId).toBe("room-202");
+    expect(appointment.roomId.value).toBe("room-202");
     expect(appointment.participantProfessionalIds).toEqual(["prof-13"]);
     expect(appointment.holdExpiresAt).toEqual(
       new Date("2026-03-10T14:05:00.000Z"),

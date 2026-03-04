@@ -23,8 +23,8 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
     appointment: Appointment,
   ): Promise<SchedulingConflictType | null> {
     const conflicts = await this.findConflicts({
-      tenantId: appointment.tenantId,
-      roomId: appointment.roomId,
+      tenantId: appointment.tenantId.value,
+      roomId: appointment.roomId.value,
       startAt: appointment.startAt,
       endAt: appointment.endAt,
       professionalIds: appointment.involvedProfessionalIds,
@@ -47,7 +47,7 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
     const index = this.items.findIndex(
       (item) =>
         item.id.toString() === appointment.id.toString() &&
-        item.tenantId === appointment.tenantId,
+        item.tenantId.value === appointment.tenantId.value,
     );
 
     if (index >= 0) {
@@ -63,7 +63,7 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
       this.items.find(
         (appointment) =>
           appointment.id.toString() === appointmentId &&
-          appointment.tenantId === tenantId,
+          appointment.tenantId.value === tenantId,
       ) ?? null
     );
   }
@@ -76,7 +76,7 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
       this.items.find(
         (appointment) =>
           appointment.externalRef === externalRef &&
-          appointment.tenantId === tenantId,
+          appointment.tenantId.value === tenantId,
       ) ?? null
     );
   }
@@ -90,7 +90,7 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
     excludeAppointmentId,
   }: AppointmentConflictCheckParams): Promise<AppointmentConflictResult> {
     const filteredAppointments = this.items.filter((appointment) => {
-      if (appointment.tenantId !== tenantId) {
+      if (appointment.tenantId.value !== tenantId) {
         return false;
       }
 
@@ -118,7 +118,7 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
 
     const roomConflict =
       overlappingAppointments.find(
-        (appointment) => appointment.roomId === roomId,
+        (appointment) => appointment.roomId.value === roomId,
       ) ?? null;
 
     const professionalIdsSet = new Set(professionalIds);
@@ -141,7 +141,7 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
         return false;
       }
 
-      if (tenantId && appointment.tenantId !== tenantId) {
+      if (tenantId && appointment.tenantId.value !== tenantId) {
         return false;
       }
 
@@ -162,7 +162,7 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
     status,
   }: ListAppointmentsFilters): Promise<Appointment[]> {
     return this.items
-      .filter((appointment) => appointment.tenantId === tenantId)
+      .filter((appointment) => appointment.tenantId.value === tenantId)
       .filter((appointment) => {
         if (!dateFrom) {
           return true;
@@ -182,14 +182,17 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
           return true;
         }
 
-        return appointment.roomId === roomId;
+        return appointment.roomId.value === roomId;
       })
       .filter((appointment) => {
         if (!responsibleProfessionalId) {
           return true;
         }
 
-        return appointment.responsibleProfessionalId === responsibleProfessionalId;
+        return (
+          appointment.responsibleProfessionalId.value ===
+          responsibleProfessionalId
+        );
       })
       .filter((appointment) => {
         if (!participantProfessionalId) {

@@ -71,7 +71,7 @@ export class RescheduleAppointmentUseCase
     }
 
     const responsibleProfessionalId =
-      newResponsibleProfessionalId ?? appointment.responsibleProfessionalId;
+      newResponsibleProfessionalId ?? appointment.responsibleProfessionalId.value;
     const normalizedParticipants = Appointment.normalizeParticipantProfessionalIds(
       newParticipantProfessionalIds ?? appointment.participantProfessionalIds,
       responsibleProfessionalId,

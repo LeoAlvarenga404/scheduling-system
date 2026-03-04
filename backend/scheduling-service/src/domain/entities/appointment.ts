@@ -3,22 +3,32 @@ import { UniqueEntityID } from "../core/entities/unique-entity-id";
 import { AppointmentValidationError } from "../errors/appointment-validation.error";
 import { HoldExpiredError } from "../errors/hold-expired.error";
 import { InvalidAppointmentStateError } from "../errors/invalid-appointment-state.error";
+import { AppointmentId } from "../value-objects/appointment-id.vo";
 import { AppointmentStatus } from "../value-objects/appointment-status.vo";
+import { HoldExpiration } from "../value-objects/hold-expiration.vo";
+import { Participants } from "../value-objects/participants.vo";
+import { ProfessionalId } from "../value-objects/professional-id.vo";
+import { RoomId } from "../value-objects/room-id.vo";
+import { TenantId } from "../value-objects/tenant-id.vo";
+import { TimeSlot } from "../value-objects/time-slot.vo";
 
 export interface AppointmentMetadata {
   [key: string]: unknown;
 }
 
 export interface AppointmentProps {
-  tenantId: string;
-  roomId: string;
-  startAt: Date;
-  endAt: Date;
+  tenantId: TenantId | string;
+  roomId: RoomId | string;
+  startAt?: Date;
+  endAt?: Date;
+  timeslot?: TimeSlot;
   status: AppointmentStatus;
-  responsibleProfessionalId: string;
-  participantProfessionalIds?: string[];
+  responsibleProfessionalId: ProfessionalId | string;
+  participantProfessionalIds?: Array<ProfessionalId | string>;
+  participants?: Participants;
   customerId?: string;
   holdExpiresAt?: Date;
+  holdExpiration?: HoldExpiration;
   externalRef?: string;
   paymentRef?: string;
   paidAt?: Date;
@@ -28,17 +38,42 @@ export interface AppointmentProps {
   metadata?: AppointmentMetadata;
 }
 
-export interface RescheduleAppointmentProps {
-  roomId: string;
-  startAt: Date;
-  endAt: Date;
-  responsibleProfessionalId: string;
-  participantProfessionalIds?: string[];
-  resetToHold: boolean;
-  holdExpiresAt?: Date;
+interface AppointmentState {
+  tenantId: TenantId;
+  roomId: RoomId;
+  timeslot: TimeSlot;
+  status: AppointmentStatus;
+  responsibleProfessionalId: ProfessionalId;
+  participants?: Participants;
+  customerId?: string;
+  holdExpiration?: HoldExpiration;
+  externalRef?: string;
+  paymentRef?: string;
+  paidAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  version: number;
+  metadata?: AppointmentMetadata;
 }
 
-export class Appointment extends Entity<AppointmentProps> {
+export interface RescheduleAppointmentProps {
+  roomId: RoomId | string;
+  startAt?: Date;
+  endAt?: Date;
+  timeslot?: TimeSlot;
+  responsibleProfessionalId: ProfessionalId | string;
+  participantProfessionalIds?: Array<ProfessionalId | string>;
+  participants?: Participants;
+  resetToHold: boolean;
+  holdExpiresAt?: Date;
+  holdExpiration?: HoldExpiration;
+}
+
+export class Appointment extends Entity<AppointmentState> {
+  get appointmentId(): AppointmentId {
+    return AppointmentId.fromUniqueEntityID(this.id);
+  }
+
   get tenantId() {
     return this.props.tenantId;
   }
@@ -47,12 +82,16 @@ export class Appointment extends Entity<AppointmentProps> {
     return this.props.roomId;
   }
 
+  get timeslot() {
+    return this.props.timeslot;
+  }
+
   get startAt() {
-    return this.props.startAt;
+    return this.props.timeslot.start;
   }
 
   get endAt() {
-    return this.props.endAt;
+    return this.props.timeslot.end;
   }
 
   get status() {
@@ -63,14 +102,18 @@ export class Appointment extends Entity<AppointmentProps> {
     return this.props.responsibleProfessionalId;
   }
 
-  get participantProfessionalIds() {
-    return this.props.participantProfessionalIds;
+  get participants() {
+    return this.props.participants;
+  }
+
+  get participantProfessionalIds(): string[] | undefined {
+    return this.props.participants?.toValues();
   }
 
   get involvedProfessionalIds(): string[] {
     return [
-      this.props.responsibleProfessionalId,
-      ...(this.props.participantProfessionalIds ?? []),
+      this.props.responsibleProfessionalId.value,
+      ...(this.props.participants?.toValues() ?? []),
     ];
   }
 
@@ -78,8 +121,12 @@ export class Appointment extends Entity<AppointmentProps> {
     return this.props.customerId;
   }
 
+  get holdExpiration() {
+    return this.props.holdExpiration;
+  }
+
   get holdExpiresAt() {
-    return this.props.holdExpiresAt;
+    return this.props.holdExpiration?.value;
   }
 
   get externalRef() {
@@ -115,13 +162,13 @@ export class Appointment extends Entity<AppointmentProps> {
       return false;
     }
 
-    if (!this.props.holdExpiresAt) {
+    if (!this.props.holdExpiration) {
       throw new AppointmentValidationError(
         "holdExpiresAt is mandatory when appointment status is HOLD.",
       );
     }
 
-    return this.props.holdExpiresAt.getTime() <= now.getTime();
+    return this.props.holdExpiration.isExpired(now);
   }
 
   confirm(now = new Date()) {
@@ -140,7 +187,7 @@ export class Appointment extends Entity<AppointmentProps> {
     }
 
     this.props.status = this.status.changeTo("CONFIRMED");
-    this.props.holdExpiresAt = undefined;
+    this.props.holdExpiration = undefined;
     this.touch();
   }
 
@@ -174,7 +221,7 @@ export class Appointment extends Entity<AppointmentProps> {
     this.props.paymentRef = paymentRef;
     this.props.paidAt = paidAt;
     this.props.status = this.status.changeTo("CONFIRMED");
-    this.props.holdExpiresAt = undefined;
+    this.props.holdExpiration = undefined;
     this.touch();
   }
 
@@ -190,7 +237,7 @@ export class Appointment extends Entity<AppointmentProps> {
     }
 
     this.props.status = this.status.changeTo("CANCELLED");
-    this.props.holdExpiresAt = undefined;
+    this.props.holdExpiration = undefined;
 
     if (details?.reason || details?.cancelledBy) {
       this.props.metadata = {
@@ -228,7 +275,7 @@ export class Appointment extends Entity<AppointmentProps> {
     }
 
     this.props.status = this.status.changeTo("EXPIRED");
-    this.props.holdExpiresAt = undefined;
+    this.props.holdExpiration = undefined;
     this.touch();
 
     return true;
@@ -238,31 +285,52 @@ export class Appointment extends Entity<AppointmentProps> {
     roomId,
     startAt,
     endAt,
+    timeslot,
     responsibleProfessionalId,
     participantProfessionalIds,
+    participants,
     resetToHold,
     holdExpiresAt,
+    holdExpiration,
   }: RescheduleAppointmentProps) {
-    Appointment.assertValidSchedule({
-      tenantId: this.tenantId,
-      roomId,
+    const normalizedRoomId = Appointment.normalizeRoomId(roomId);
+    const normalizedTimeSlot = Appointment.normalizeTimeSlot({
       startAt,
       endAt,
-      status: resetToHold ? AppointmentStatus.create("HOLD") : this.status,
-      responsibleProfessionalId,
+      timeslot,
+    });
+    const normalizedResponsibleProfessionalId =
+      Appointment.normalizeProfessionalId(responsibleProfessionalId);
+    const normalizedParticipants = Appointment.normalizeParticipants({
+      participants,
       participantProfessionalIds,
-      holdExpiresAt,
+      responsibleProfessionalId: normalizedResponsibleProfessionalId,
+    });
+    const normalizedHoldExpiration = resetToHold
+      ? Appointment.normalizeHoldExpiration({
+          holdExpiresAt,
+          holdExpiration,
+        })
+      : undefined;
+
+    Appointment.assertValidSchedule({
+      tenantId: this.tenantId,
+      roomId: normalizedRoomId,
+      timeslot: normalizedTimeSlot,
+      status: resetToHold ? AppointmentStatus.create("HOLD") : this.status,
+      responsibleProfessionalId: normalizedResponsibleProfessionalId,
+      participants: normalizedParticipants,
+      holdExpiration: normalizedHoldExpiration,
     });
 
-    this.props.roomId = roomId;
-    this.props.startAt = startAt;
-    this.props.endAt = endAt;
-    this.props.responsibleProfessionalId = responsibleProfessionalId;
-    this.props.participantProfessionalIds = participantProfessionalIds;
+    this.props.roomId = normalizedRoomId;
+    this.props.timeslot = normalizedTimeSlot;
+    this.props.responsibleProfessionalId = normalizedResponsibleProfessionalId;
+    this.props.participants = normalizedParticipants;
 
     if (resetToHold) {
       this.props.status = this.status.changeTo("HOLD");
-      this.props.holdExpiresAt = holdExpiresAt;
+      this.props.holdExpiration = normalizedHoldExpiration;
       this.props.paymentRef = undefined;
       this.props.paidAt = undefined;
     }
@@ -276,122 +344,227 @@ export class Appointment extends Entity<AppointmentProps> {
   }
 
   static normalizeParticipantProfessionalIds(
-    participantProfessionalIds: string[] | undefined,
-    responsibleProfessionalId: string,
+    participantProfessionalIds: Array<ProfessionalId | string> | undefined,
+    responsibleProfessionalId: ProfessionalId | string,
   ): string[] | undefined {
     if (!participantProfessionalIds?.length) {
       return undefined;
     }
 
+    const responsibleProfessionalIdValue =
+      Appointment.normalizeProfessionalId(responsibleProfessionalId).value;
     const uniqueParticipants = Array.from(
-      new Set(participantProfessionalIds.filter(Boolean)),
-    ).filter((professionalId) => professionalId !== responsibleProfessionalId);
+      new Set(
+        participantProfessionalIds
+          .map((participantProfessionalId) =>
+            Appointment.normalizeProfessionalId(participantProfessionalId).value,
+          )
+          .filter(Boolean),
+      ),
+    ).filter((professionalId) => professionalId !== responsibleProfessionalIdValue);
 
     return uniqueParticipants.length > 0 ? uniqueParticipants : undefined;
   }
 
-  static create(props: AppointmentProps, id?: UniqueEntityID) {
-    const normalizedParticipants = Appointment.normalizeParticipantProfessionalIds(
-      props.participantProfessionalIds,
+  static create(
+    props: AppointmentProps,
+    id?: UniqueEntityID | AppointmentId,
+  ): Appointment {
+    const tenantId = Appointment.normalizeTenantId(props.tenantId);
+    const roomId = Appointment.normalizeRoomId(props.roomId);
+    const timeslot = Appointment.normalizeTimeSlot({
+      startAt: props.startAt,
+      endAt: props.endAt,
+      timeslot: props.timeslot,
+    });
+    const responsibleProfessionalId = Appointment.normalizeProfessionalId(
       props.responsibleProfessionalId,
     );
+    const participants = Appointment.normalizeParticipants({
+      participants: props.participants,
+      participantProfessionalIds: props.participantProfessionalIds,
+      responsibleProfessionalId,
+    });
+    const holdExpiration = Appointment.normalizeHoldExpiration({
+      holdExpiresAt: props.holdExpiresAt,
+      holdExpiration: props.holdExpiration,
+    });
 
     Appointment.assertValidSchedule({
-      ...props,
-      participantProfessionalIds: normalizedParticipants,
+      tenantId,
+      roomId,
+      timeslot,
+      status: props.status,
+      responsibleProfessionalId,
+      participants,
+      holdExpiration,
     });
 
     const now = new Date();
 
     const appointment = new Appointment(
       {
-        ...props,
-        participantProfessionalIds: normalizedParticipants,
+        tenantId,
+        roomId,
+        timeslot,
+        status: props.status,
+        responsibleProfessionalId,
+        participants,
+        customerId: props.customerId,
+        holdExpiration,
+        externalRef: props.externalRef,
+        paymentRef: props.paymentRef,
+        paidAt: props.paidAt,
         createdAt: props.createdAt ?? now,
         updatedAt: props.updatedAt ?? props.createdAt ?? now,
         version: props.version ?? 0,
+        metadata: props.metadata,
       },
-      id,
+      Appointment.normalizeUniqueEntityID(id),
     );
 
     return appointment;
+  }
+
+  private static normalizeUniqueEntityID(
+    id?: UniqueEntityID | AppointmentId,
+  ): UniqueEntityID | undefined {
+    if (!id) {
+      return undefined;
+    }
+
+    if (id instanceof UniqueEntityID) {
+      return id;
+    }
+
+    return id.toUniqueEntityID();
+  }
+
+  private static normalizeTenantId(tenantId: TenantId | string): TenantId {
+    return tenantId instanceof TenantId ? tenantId : TenantId.create(tenantId);
+  }
+
+  private static normalizeRoomId(roomId: RoomId | string): RoomId {
+    return roomId instanceof RoomId ? roomId : RoomId.create(roomId);
+  }
+
+  private static normalizeProfessionalId(
+    professionalId: ProfessionalId | string,
+  ): ProfessionalId {
+    return professionalId instanceof ProfessionalId
+      ? professionalId
+      : ProfessionalId.create(professionalId);
+  }
+
+  private static normalizeHoldExpiration({
+    holdExpiresAt,
+    holdExpiration,
+  }: {
+    holdExpiresAt?: Date;
+    holdExpiration?: HoldExpiration;
+  }): HoldExpiration | undefined {
+    if (holdExpiration) {
+      return holdExpiration;
+    }
+
+    if (!holdExpiresAt) {
+      return undefined;
+    }
+
+    return HoldExpiration.create(holdExpiresAt);
+  }
+
+  private static normalizeTimeSlot({
+    startAt,
+    endAt,
+    timeslot,
+  }: {
+    startAt?: Date;
+    endAt?: Date;
+    timeslot?: TimeSlot;
+  }): TimeSlot {
+    if (timeslot) {
+      return timeslot;
+    }
+
+    if (!startAt || !endAt) {
+      throw new AppointmentValidationError("startAt and endAt are mandatory.");
+    }
+
+    return TimeSlot.create(startAt, endAt);
+  }
+
+  private static normalizeParticipants({
+    participants,
+    participantProfessionalIds,
+    responsibleProfessionalId,
+  }: {
+    participants?: Participants;
+    participantProfessionalIds?: Array<ProfessionalId | string>;
+    responsibleProfessionalId: ProfessionalId;
+  }): Participants | undefined {
+    const normalizedParticipantProfessionalIds =
+      Appointment.normalizeParticipantProfessionalIds(
+        participants?.professionals ?? participantProfessionalIds,
+        responsibleProfessionalId,
+      );
+
+    if (!normalizedParticipantProfessionalIds) {
+      return undefined;
+    }
+
+    return Participants.create(
+      normalizedParticipantProfessionalIds.map((participantProfessionalId) =>
+        ProfessionalId.create(participantProfessionalId),
+      ),
+    );
   }
 
   private static assertValidSchedule({
     tenantId,
     roomId,
     responsibleProfessionalId,
-    participantProfessionalIds,
-    startAt,
-    endAt,
+    participants,
+    timeslot,
     status,
-    holdExpiresAt,
+    holdExpiration,
   }: {
-    tenantId: string;
-    roomId: string;
-    responsibleProfessionalId: string;
-    participantProfessionalIds?: string[];
-    startAt: Date;
-    endAt: Date;
+    tenantId: TenantId;
+    roomId: RoomId;
+    responsibleProfessionalId: ProfessionalId;
+    participants?: Participants;
+    timeslot: TimeSlot;
     status: AppointmentStatus;
-    holdExpiresAt?: Date;
+    holdExpiration?: HoldExpiration;
   }) {
-    if (!tenantId) {
+    if (!tenantId.value) {
       throw new AppointmentValidationError("tenantId is mandatory.");
     }
 
-    if (!roomId) {
+    if (!roomId.value) {
       throw new AppointmentValidationError("roomId is mandatory.");
     }
 
-    if (!responsibleProfessionalId) {
+    if (!responsibleProfessionalId.value) {
       throw new AppointmentValidationError(
         "responsibleProfessionalId is mandatory.",
       );
     }
 
-    if (!(startAt instanceof Date) || Number.isNaN(startAt.getTime())) {
-      throw new AppointmentValidationError("startAt must be a valid Date.");
-    }
-
-    if (!(endAt instanceof Date) || Number.isNaN(endAt.getTime())) {
-      throw new AppointmentValidationError("endAt must be a valid Date.");
-    }
-
-    if (endAt.getTime() <= startAt.getTime()) {
+    if (timeslot.end.getTime() <= timeslot.start.getTime()) {
       throw new AppointmentValidationError("endAt must be greater than startAt.");
     }
 
-    if (participantProfessionalIds?.includes(responsibleProfessionalId)) {
+    if (participants?.contains(responsibleProfessionalId)) {
       throw new AppointmentValidationError(
         "participantProfessionalIds cannot contain responsibleProfessionalId.",
       );
     }
 
-    if (participantProfessionalIds) {
-      const uniqueCount = new Set(participantProfessionalIds).size;
-      if (uniqueCount !== participantProfessionalIds.length) {
-        throw new AppointmentValidationError(
-          "participantProfessionalIds cannot contain duplicates.",
-        );
-      }
-    }
-
-    if (status.value === "HOLD") {
-      if (!holdExpiresAt) {
-        throw new AppointmentValidationError(
-          "holdExpiresAt is mandatory when status is HOLD.",
-        );
-      }
-
-      if (
-        !(holdExpiresAt instanceof Date) ||
-        Number.isNaN(holdExpiresAt.getTime())
-      ) {
-        throw new AppointmentValidationError(
-          "holdExpiresAt must be a valid Date.",
-        );
-      }
+    if (status.value === "HOLD" && !holdExpiration) {
+      throw new AppointmentValidationError(
+        "holdExpiresAt is mandatory when status is HOLD.",
+      );
     }
   }
 }

@@ -2,7 +2,6 @@ import { Either, left, right } from "src/domain/core/entities/either";
 import { UseCase } from "src/domain/core/entities/use-case";
 import { Appointment } from "src/domain/entities/appointment";
 import { AppointmentNotFoundError } from "src/domain/errors/appointment-not-found.error";
-import { TenantMismatchError } from "src/domain/errors/tenant-mismatch.error";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 
 export interface GetAppointmentByIdRequest {
@@ -11,17 +10,17 @@ export interface GetAppointmentByIdRequest {
 }
 
 export type GetAppointmentByIdOutput = Either<
-  AppointmentNotFoundError | TenantMismatchError,
+  AppointmentNotFoundError,
   {
     appointment: Appointment;
   }
 >;
 
-export class GetAppointmentByIdUseCase implements UseCase<
-  GetAppointmentByIdRequest,
-  GetAppointmentByIdOutput
-> {
+export class GetAppointmentByIdUseCase
+  implements UseCase<GetAppointmentByIdRequest, GetAppointmentByIdOutput>
+{
   constructor(private appointmentRepository: AppointmentRepository) {}
+
   async execute({
     appointmentId,
     tenantId,

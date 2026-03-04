@@ -1,6 +1,11 @@
 import { ValueObject } from "../core/entities/value-object";
 
-export type Status = "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED";
+export type Status =
+  | "HOLD"
+  | "CONFIRMED"
+  | "CANCELLED"
+  | "EXPIRED"
+  | "COMPLETED";
 
 export interface AppointmentStatusProps {
   status: Status;
@@ -15,7 +20,7 @@ export class AppointmentStatus extends ValueObject<AppointmentStatusProps> {
     return this.props.status;
   }
 
-  static create(status: Status = "PENDING") {
+  static create(status: Status = "HOLD") {
     return new AppointmentStatus({ status });
   }
 

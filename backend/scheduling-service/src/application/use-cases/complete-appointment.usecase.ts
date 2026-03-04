@@ -1,7 +1,8 @@
 import { Either, left, right } from "src/domain/core/entities/either";
 import { UseCase } from "src/domain/core/entities/use-case";
+import { Appointment } from "src/domain/entities/appointment";
 import { AppointmentNotFoundError } from "src/domain/errors/appointment-not-found.error";
-import { TenantMismatchError } from "src/domain/errors/tenant-mismatch.error";
+import { InvalidAppointmentStateError } from "src/domain/errors/invalid-appointment-state.error";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 
 export interface CompleteAppointmentRequest {
@@ -10,15 +11,17 @@ export interface CompleteAppointmentRequest {
 }
 
 export type CompleteAppointmentOutput = Either<
-  AppointmentNotFoundError | TenantMismatchError,
-  void
+  AppointmentNotFoundError | InvalidAppointmentStateError,
+  {
+    appointment: Appointment;
+  }
 >;
 
-export class CompleteAppointmentUseCase implements UseCase<
-  CompleteAppointmentRequest,
-  CompleteAppointmentOutput
-> {
+export class CompleteAppointmentUseCase
+  implements UseCase<CompleteAppointmentRequest, CompleteAppointmentOutput>
+{
   constructor(private appointmentRepository: AppointmentRepository) {}
+
   async execute({
     appointmentId,
     tenantId,
@@ -28,16 +31,25 @@ export class CompleteAppointmentUseCase implements UseCase<
       tenantId,
     );
 
-    if (appointment?.tenantId !== tenantId) {
-      return left(new TenantMismatchError());
-    }
     if (!appointment) {
       return left(new AppointmentNotFoundError());
     }
-    appointment.completeAppointment();
 
-    await this.appointmentRepository.completeAppointment(appointmentId);
+    if (appointment.status.value === "COMPLETED") {
+      return right({ appointment });
+    }
 
-    return right(undefined);
+    if (appointment.status.value !== "CONFIRMED") {
+      return left(
+        new InvalidAppointmentStateError(
+          "Only CONFIRMED appointments can be completed.",
+        ),
+      );
+    }
+
+    appointment.complete();
+    await this.appointmentRepository.updateAppointment(appointment);
+
+    return right({ appointment });
   }
 }

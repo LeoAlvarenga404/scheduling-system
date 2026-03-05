@@ -1,0 +1,81 @@
+services:
+
+  api:
+    build:
+      context: ./backend/scheduling-service
+      dockerfile: Dockerfile
+    container_name: scheduling-service-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://scheduling:scheduling@postgres:5432/scheduling_service?schema=public
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  postgres:
+    image: bitnami/postgresql:latest
+    container_name: scheduling-service-postgres
+    environment:
+      POSTGRESQL_USERNAME: scheduling
+      POSTGRESQL_PASSWORD: scheduling
+      POSTGRESQL_DATABASE: scheduling_service
+    volumes:
+      - postgres_data:/bitnami/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -h 127.0.0.1 -p 5432 -U $$POSTGRESQL_USERNAME -d $$POSTGRESQL_DATABASE
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  kong:
+    image: kong:3
+    container_name: kong
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  redis_data:

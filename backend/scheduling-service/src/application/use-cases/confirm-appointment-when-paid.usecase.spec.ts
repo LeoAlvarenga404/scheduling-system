@@ -4,6 +4,7 @@ import { AlreadyConfirmedWithOtherPaymentError } from "src/domain/errors/already
 import { HoldExpiredError } from "src/domain/errors/hold-expired.error";
 import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
 import { makeAppointment } from "src/test/factories/make-appointment";
+import { AppointmentConfirmedEvent } from "src/domain/events/appointment-confirmed.event";
 
 let sut: ConfirmAppointmentWhenPaidUseCase;
 let appointmentRepository: InMemoryAppointmentRepository;
@@ -22,6 +23,8 @@ describe("Confirm Appointment When Paid Use Case", () => {
 
     await appointmentRepository.createAppointment(appointment);
 
+    expect(appointment.getDomainEvents()).toHaveLength(1);
+    
     const response = await sut.execute({
       tenantId: "tenant-01",
       externalRef: "checkout_abc123",
@@ -31,6 +34,10 @@ describe("Confirm Appointment When Paid Use Case", () => {
       now: new Date("2026-03-10T12:05:10.000Z"),
     });
 
+    expect(appointment.getDomainEvents()).toHaveLength(2);
+    expect(appointment.getDomainEvents()[1]).toBeInstanceOf(
+      AppointmentConfirmedEvent,
+    );
     expect(response.isRight()).toBe(true);
     expect(appointment.status.value).toBe("CONFIRMED");
     expect(appointment.paymentRef).toBe("pay_777");
@@ -115,6 +122,8 @@ describe("Confirm Appointment When Paid Use Case", () => {
     });
 
     expect(response.isRight()).toBe(false);
-    expect(response.value).toBeInstanceOf(AlreadyConfirmedWithOtherPaymentError);
+    expect(response.value).toBeInstanceOf(
+      AlreadyConfirmedWithOtherPaymentError,
+    );
   });
 });

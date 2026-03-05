@@ -1,7 +1,7 @@
 import { DomainEvent } from "./domain-event";
 
-export class AppointmentHoldCreatedEvent extends DomainEvent {
-  eventName = "appointment.hold.created";
+export class AppointmentCreatedEvent extends DomainEvent {
+  eventName = "appointment.created";
 
   constructor(
     public readonly appointmentId: string,

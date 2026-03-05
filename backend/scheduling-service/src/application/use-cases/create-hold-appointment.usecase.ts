@@ -4,7 +4,7 @@ import { Appointment } from "src/domain/entities/appointment";
 import { AppointmentValidationError } from "src/domain/errors/appointment-validation.error";
 import { IdempotencyKeyRequiredError } from "src/domain/errors/idempotency-key-required.error";
 import { SchedulingConflictsError } from "src/domain/errors/scheduling-conflicts.error";
-import { AppointmentHoldCreatedEvent } from "src/domain/events/appointment-hold-created.event";
+import { AppointmentCreatedEvent } from "src/domain/events/appointment-created.event";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 import { AppointmentStatus } from "src/domain/value-objects/appointment-status.vo";
 
@@ -102,9 +102,6 @@ export class CreateHoldAppointmentUseCase implements UseCase<
         externalRef,
         holdExpiresAt,
       });
-
-  
-      
     } catch (error) {
       return left(
         error instanceof AppointmentValidationError

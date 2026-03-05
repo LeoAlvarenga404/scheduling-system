@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { CompleteAppointmentUseCase } from "./complete-appointment.usecase";
 import { InvalidAppointmentStateError } from "src/domain/errors/invalid-appointment-state.error";
+import { AppointmentCompletedEvent } from "src/domain/events/appointment-completed.event";
 import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
 import { makeAppointment } from "src/test/factories/make-appointment";
 
@@ -25,6 +26,13 @@ describe("Complete Appointment Use Case", () => {
 
     expect(response.isRight()).toBe(true);
     expect(appointment.status.value).toBe("COMPLETED");
+    expect(appointment.getDomainEvents()).toHaveLength(2);
+    expect(appointment.getDomainEvents()[1]).toBeInstanceOf(
+      AppointmentCompletedEvent,
+    );
+    expect(appointment.getDomainEvents()[1].eventName).toBe(
+      "appointment.completed",
+    );
   });
 
   it("should return error when appointment is not confirmed", async () => {

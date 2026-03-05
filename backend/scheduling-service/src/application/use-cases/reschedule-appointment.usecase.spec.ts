@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { RescheduleAppointmentUseCase } from "./reschedule-appointment.usecase";
 import { SchedulingConflictsError } from "src/domain/errors/scheduling-conflicts.error";
+import { AppointmentRescheduledEvent } from "src/domain/events/appointment-rescheduled.event";
 import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
 import { makeAppointment } from "src/test/factories/make-appointment";
 
@@ -36,6 +37,10 @@ describe("Reschedule Appointment Use Case", () => {
     expect(appointment.participantProfessionalIds).toEqual(["prof-13"]);
     expect(appointment.holdExpiresAt).toEqual(
       new Date("2026-03-10T14:05:00.000Z"),
+    );
+    expect(appointment.getDomainEvents()).toHaveLength(2);
+    expect(appointment.getDomainEvents()[1]).toBeInstanceOf(
+      AppointmentRescheduledEvent,
     );
   });
 

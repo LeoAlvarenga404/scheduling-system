@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { ConfirmAppointmentUseCase } from "./confirm-appointment.usecase";
 import { HoldExpiredError } from "src/domain/errors/hold-expired.error";
 import { InvalidAppointmentStateError } from "src/domain/errors/invalid-appointment-state.error";
+import { AppointmentConfirmedEvent } from "src/domain/events/appointment-confirmed.event";
+import { AppointmentExpiredEvent } from "src/domain/events/appointment-expired.event";
 import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
 import { makeAppointment } from "src/test/factories/make-appointment";
 
@@ -28,6 +30,10 @@ describe("Confirm Appointment Use Case", () => {
     expect(response.isRight()).toBe(true);
     expect(appointment.status.value).toBe("CONFIRMED");
     expect(appointment.holdExpiresAt).toBeUndefined();
+    expect(appointment.getDomainEvents()).toHaveLength(2);
+    expect(appointment.getDomainEvents()[1]).toBeInstanceOf(
+      AppointmentConfirmedEvent,
+    );
   });
 
   it("should expire hold when trying to confirm after expiration", async () => {
@@ -46,6 +52,10 @@ describe("Confirm Appointment Use Case", () => {
     expect(response.isRight()).toBe(false);
     expect(response.value).toBeInstanceOf(HoldExpiredError);
     expect(appointment.status.value).toBe("EXPIRED");
+    expect(appointment.getDomainEvents()).toHaveLength(2);
+    expect(appointment.getDomainEvents()[1]).toBeInstanceOf(
+      AppointmentExpiredEvent,
+    );
   });
 
   it("should return error when appointment is not in HOLD", async () => {

@@ -3,7 +3,12 @@ import { UniqueEntityID } from "../core/entities/unique-entity-id";
 import { AppointmentValidationError } from "../errors/appointment-validation.error";
 import { HoldExpiredError } from "../errors/hold-expired.error";
 import { InvalidAppointmentStateError } from "../errors/invalid-appointment-state.error";
-import { AppointmentHoldCreatedEvent } from "../events/appointment-hold-created.event";
+import { AppointmentCancelledEvent } from "../events/appointment-cancelled.event";
+import { AppointmentCompletedEvent } from "../events/appointment-completed.event";
+import { AppointmentConfirmedEvent } from "../events/appointment-confirmed.event";
+import { AppointmentCreatedEvent } from "../events/appointment-created.event";
+import { AppointmentExpiredEvent } from "../events/appointment-expired.event";
+import { AppointmentRescheduledEvent } from "../events/appointment-rescheduled.event";
 import { AppointmentId } from "../value-objects/appointment-id.vo";
 import { AppointmentStatus } from "../value-objects/appointment-status.vo";
 import { HoldExpiration } from "../value-objects/hold-expiration.vo";
@@ -189,6 +194,14 @@ export class Appointment extends Entity<AppointmentState> {
 
     this.props.status = this.status.changeTo("CONFIRMED");
     this.props.holdExpiration = undefined;
+
+    this.addDomainEvent(
+      new AppointmentConfirmedEvent(
+        this.appointmentId.value,
+        this.props.tenantId.value,
+        this.props.paymentRef,
+      ),
+    );
     this.touch();
   }
 
@@ -223,6 +236,14 @@ export class Appointment extends Entity<AppointmentState> {
     this.props.paidAt = paidAt;
     this.props.status = this.status.changeTo("CONFIRMED");
     this.props.holdExpiration = undefined;
+
+    this.addDomainEvent(
+      new AppointmentConfirmedEvent(
+        this.appointmentId.value,
+        this.props.tenantId.value,
+        paymentRef,
+      ),
+    );
     this.touch();
   }
 
@@ -248,6 +269,14 @@ export class Appointment extends Entity<AppointmentState> {
       };
     }
 
+    this.addDomainEvent(
+      new AppointmentCancelledEvent(
+        this.appointmentId.value,
+        this.props.tenantId.value,
+        details?.reason,
+        details?.cancelledBy,
+      ),
+    );
     this.touch();
   }
 
@@ -263,6 +292,12 @@ export class Appointment extends Entity<AppointmentState> {
     }
 
     this.props.status = this.status.changeTo("COMPLETED");
+    this.addDomainEvent(
+      new AppointmentCompletedEvent(
+        this.appointmentId.value,
+        this.props.tenantId.value,
+      ),
+    );
     this.touch();
   }
 
@@ -277,6 +312,12 @@ export class Appointment extends Entity<AppointmentState> {
 
     this.props.status = this.status.changeTo("EXPIRED");
     this.props.holdExpiration = undefined;
+    this.addDomainEvent(
+      new AppointmentExpiredEvent(
+        this.appointmentId.value,
+        this.props.tenantId.value,
+      ),
+    );
     this.touch();
 
     return true;
@@ -324,6 +365,10 @@ export class Appointment extends Entity<AppointmentState> {
       holdExpiration: normalizedHoldExpiration,
     });
 
+    const previousRoomId = this.props.roomId.value;
+    const previousStartAt = this.props.timeslot.start;
+    const previousEndAt = this.props.timeslot.end;
+
     this.props.roomId = normalizedRoomId;
     this.props.timeslot = normalizedTimeSlot;
     this.props.responsibleProfessionalId = normalizedResponsibleProfessionalId;
@@ -336,6 +381,18 @@ export class Appointment extends Entity<AppointmentState> {
       this.props.paidAt = undefined;
     }
 
+    this.addDomainEvent(
+      new AppointmentRescheduledEvent(
+        this.appointmentId.value,
+        this.props.tenantId.value,
+        previousRoomId,
+        this.props.roomId.value,
+        previousStartAt,
+        previousEndAt,
+        this.props.timeslot.start,
+        this.props.timeslot.end,
+      ),
+    );
     this.touch();
   }
 
@@ -430,7 +487,7 @@ export class Appointment extends Entity<AppointmentState> {
     );
 
     appointment.addDomainEvent(
-      new AppointmentHoldCreatedEvent(
+      new AppointmentCreatedEvent(
         appointment.appointmentId.value,
         appointment.tenantId.value,
         appointment.roomId.value,

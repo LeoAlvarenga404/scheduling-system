@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { CancelAppointmentUseCase } from "./cancel-appointment.usecase";
 import { InvalidAppointmentStateError } from "src/domain/errors/invalid-appointment-state.error";
+import { AppointmentCancelledEvent } from "src/domain/events/appointment-cancelled.event";
 import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
 import { makeAppointment } from "src/test/factories/make-appointment";
 
@@ -28,6 +29,10 @@ describe("Cancel Appointment Use Case", () => {
     expect(response.isRight()).toBe(true);
     expect(appointment.status.value).toBe("CANCELLED");
     expect(appointment.metadata?.cancelledBy).toBe("user-01");
+    expect(appointment.getDomainEvents()).toHaveLength(2);
+    expect(appointment.getDomainEvents()[1]).toBeInstanceOf(
+      AppointmentCancelledEvent,
+    );
   });
 
   it("should return error when trying to cancel completed appointment", async () => {

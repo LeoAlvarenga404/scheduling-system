@@ -30,7 +30,6 @@ export type CreateHoldAppointmentOutput = Either<
   }
 >;
 
-
 const CREATE_HOLD_OPERATION = "CREATE_HOLD_APPOINTMENT";
 
 export class CreateHoldAppointmentUseCase implements UseCase<

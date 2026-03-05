@@ -1,7 +1,5 @@
 import { Appointment } from "src/domain/entities/appointment";
-import {
-  AppointmentRepository,
-} from "src/domain/repositories/appointment.repository";
+import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 import type {
   AppointmentConflictCheckParams,
   AppointmentConflictResult,
@@ -11,7 +9,7 @@ import type {
 } from "src/domain/repositories/appointment.repository.types";
 import type { SchedulingConflictType } from "src/domain/core/types/scheduling-conflict.types";
 
-const ACTIVE_STATUSES: ReadonlySet<string> = new Set(["HOLD", "CONFIRMED"]);
+const ACTIVE_STATUS: ReadonlySet<string> = new Set(["HOLD", "CONFIRMED"]);
 
 export class InMemoryAppointmentRepository implements AppointmentRepository {
   public items: Appointment[] = [];
@@ -105,7 +103,7 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
 
     const overlappingAppointments = filteredAppointments.filter(
       (appointment) => {
-        if (!ACTIVE_STATUSES.has(appointment.status.value)) {
+        if (!ACTIVE_STATUS.has(appointment.status.value)) {
           return false;
         }
 
@@ -149,7 +147,7 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
 
       return Boolean(
         appointment.holdExpiresAt &&
-          appointment.holdExpiresAt.getTime() <= now.getTime(),
+        appointment.holdExpiresAt.getTime() <= now.getTime(),
       );
     });
   }
@@ -215,7 +213,9 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
         return appointment.status.value === status;
       })
       .sort((leftAppointment, rightAppointment) => {
-        return leftAppointment.startAt.getTime() - rightAppointment.startAt.getTime();
+        return (
+          leftAppointment.startAt.getTime() - rightAppointment.startAt.getTime()
+        );
       });
   }
 
@@ -263,6 +263,9 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
     startAtB: Date;
     endAtB: Date;
   }): boolean {
-    return startAtA.getTime() < endAtB.getTime() && startAtB.getTime() < endAtA.getTime();
+    return (
+      startAtA.getTime() < endAtB.getTime() &&
+      startAtB.getTime() < endAtA.getTime()
+    );
   }
 }

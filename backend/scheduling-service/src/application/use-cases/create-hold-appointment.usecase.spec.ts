@@ -93,7 +93,6 @@ describe("Create Hold Appointment Use Case", () => {
 
     expect(response.isRight()).toBe(false);
     expect(response.value).toBeInstanceOf(SchedulingConflictsError);
-
   });
 
   it("should block participant professional conflicts (scenario C)", async () => {

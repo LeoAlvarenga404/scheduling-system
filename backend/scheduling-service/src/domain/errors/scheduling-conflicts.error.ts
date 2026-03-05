@@ -1,4 +1,4 @@
-export type SchedulingConflictType = "CONFLICT_ROOM" | "CONFLICT_PROFESSIONAL";
+import type { SchedulingConflictType } from "../core/types/scheduling-conflict.types";
 
 export class SchedulingConflictsError extends Error {
   constructor(readonly conflictType: SchedulingConflictType) {

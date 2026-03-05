@@ -17,9 +17,10 @@ export type CompleteAppointmentOutput = Either<
   }
 >;
 
-export class CompleteAppointmentUseCase
-  implements UseCase<CompleteAppointmentRequest, CompleteAppointmentOutput>
-{
+export class CompleteAppointmentUseCase implements UseCase<
+  CompleteAppointmentRequest,
+  CompleteAppointmentOutput
+> {
   constructor(private appointmentRepository: AppointmentRepository) {}
 
   async execute({

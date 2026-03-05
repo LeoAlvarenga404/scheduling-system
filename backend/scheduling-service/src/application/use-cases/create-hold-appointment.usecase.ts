@@ -4,11 +4,8 @@ import { Appointment } from "src/domain/entities/appointment";
 import { AppointmentValidationError } from "src/domain/errors/appointment-validation.error";
 import { IdempotencyKeyRequiredError } from "src/domain/errors/idempotency-key-required.error";
 import { SchedulingConflictsError } from "src/domain/errors/scheduling-conflicts.error";
-import { AppointmentCreatedEvent } from "src/domain/events/appointment-created.event";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 import { AppointmentStatus } from "src/domain/value-objects/appointment-status.vo";
-
-const CREATE_HOLD_OPERATION = "CREATE_HOLD_APPOINTMENT";
 
 export interface CreateHoldAppointmentRequest {
   tenantId: string;
@@ -32,6 +29,9 @@ export type CreateHoldAppointmentOutput = Either<
     appointment: Appointment;
   }
 >;
+
+
+const CREATE_HOLD_OPERATION = "CREATE_HOLD_APPOINTMENT";
 
 export class CreateHoldAppointmentUseCase implements UseCase<
   CreateHoldAppointmentRequest,

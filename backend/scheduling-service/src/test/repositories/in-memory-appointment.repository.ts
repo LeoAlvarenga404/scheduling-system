@@ -1,13 +1,15 @@
 import { Appointment } from "src/domain/entities/appointment";
 import {
+  AppointmentRepository,
+} from "src/domain/repositories/appointment.repository";
+import type {
   AppointmentConflictCheckParams,
   AppointmentConflictResult,
-  AppointmentRepository,
   FindIdempotencyRecordParams,
   IdempotencyRecord,
   ListAppointmentsFilters,
-} from "src/domain/repositories/appointment.repository";
-import { SchedulingConflictType } from "src/domain/errors/scheduling-conflicts.error";
+} from "src/domain/repositories/appointment.repository.types";
+import type { SchedulingConflictType } from "src/domain/core/types/scheduling-conflict.types";
 
 const ACTIVE_STATUSES: ReadonlySet<string> = new Set(["HOLD", "CONFIRMED"]);
 

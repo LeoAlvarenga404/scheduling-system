@@ -16,9 +16,10 @@ export type GetAppointmentByIdOutput = Either<
   }
 >;
 
-export class GetAppointmentByIdUseCase
-  implements UseCase<GetAppointmentByIdRequest, GetAppointmentByIdOutput>
-{
+export class GetAppointmentByIdUseCase implements UseCase<
+  GetAppointmentByIdRequest,
+  GetAppointmentByIdOutput
+> {
   constructor(private appointmentRepository: AppointmentRepository) {}
 
   async execute({

@@ -1,6 +1,6 @@
 import { Either, right } from "src/domain/core/entities/either";
 import { UseCase } from "src/domain/core/entities/use-case";
-import { Appointment } from "src/domain/entities/appointment";
+import type { Appointment } from "src/domain/entities/appointment";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 
 export interface ExpireHoldsRequest {
@@ -15,17 +15,22 @@ export type ExpireHoldsOutput = Either<
   }
 >;
 
-export class ExpireHoldsUseCase
-  implements UseCase<ExpireHoldsRequest, ExpireHoldsOutput>
-{
+export class ExpireHoldsUseCase implements UseCase<
+  ExpireHoldsRequest,
+  ExpireHoldsOutput
+> {
   constructor(private appointmentRepository: AppointmentRepository) {}
 
-  async execute({ tenantId, now }: ExpireHoldsRequest): Promise<ExpireHoldsOutput> {
+  async execute({
+    tenantId,
+    now,
+  }: ExpireHoldsRequest): Promise<ExpireHoldsOutput> {
     const referenceDate = now ?? new Date();
-    const appointmentsToExpire = await this.appointmentRepository.listExpiredHolds(
-      referenceDate,
-      tenantId,
-    );
+    const appointmentsToExpire =
+      await this.appointmentRepository.listExpiredHolds(
+        referenceDate,
+        tenantId,
+      );
 
     const expiredAppointments: Appointment[] = [];
 

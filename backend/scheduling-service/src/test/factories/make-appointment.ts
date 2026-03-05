@@ -1,4 +1,5 @@
-import { Appointment, AppointmentProps } from "src/domain/entities/appointment";
+import { Appointment } from "src/domain/entities/appointment";
+import type { AppointmentProps } from "src/domain/entities/appointment.types";
 import { AppointmentStatus, Status } from "src/domain/value-objects/appointment-status.vo";
 
 interface MakeAppointmentProps extends Partial<Omit<AppointmentProps, "status">> {

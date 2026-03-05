@@ -9,8 +9,6 @@ import { IdempotencyKeyRequiredError } from "src/domain/errors/idempotency-key-r
 import { InvalidAppointmentStateError } from "src/domain/errors/invalid-appointment-state.error";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 
-const CONFIRM_WHEN_PAID_OPERATION = "CONFIRM_APPOINTMENT_WHEN_PAID";
-
 export interface ConfirmAppointmentWhenPaidRequest {
   tenantId: string;
   appointmentId?: string;
@@ -32,6 +30,8 @@ export type ConfirmAppointmentWhenPaidOutput = Either<
     appointment: Appointment;
   }
 >;
+
+const CONFIRM_WHEN_PAID_OPERATION = "CONFIRM_APPOINTMENT_WHEN_PAID";
 
 export class ConfirmAppointmentWhenPaidUseCase implements UseCase<
   ConfirmAppointmentWhenPaidRequest,

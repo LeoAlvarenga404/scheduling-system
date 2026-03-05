@@ -1,9 +1,11 @@
-import { Either, left, right } from "src/domain/core/entities/either";
+import { left, right } from "src/domain/core/entities/either";
 import { UseCase } from "src/domain/core/entities/use-case";
-import { Appointment } from "src/domain/entities/appointment";
+import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
+
+import type { Either } from "src/domain/core/entities/either";
+import type { Appointment } from "src/domain/entities/appointment";
 import { AppointmentNotFoundError } from "src/domain/errors/appointment-not-found.error";
 import { InvalidAppointmentStateError } from "src/domain/errors/invalid-appointment-state.error";
-import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 
 export interface CancelAppointmentRequest {
   appointmentId: string;
@@ -19,9 +21,10 @@ export type CancelAppointmentOutput = Either<
   }
 >;
 
-export class CancelAppointmentUseCase
-  implements UseCase<CancelAppointmentRequest, CancelAppointmentOutput>
-{
+export class CancelAppointmentUseCase implements UseCase<
+  CancelAppointmentRequest,
+  CancelAppointmentOutput
+> {
   constructor(private appointmentRepository: AppointmentRepository) {}
 
   async execute({
@@ -47,7 +50,10 @@ export class CancelAppointmentUseCase
       return right({ appointment });
     }
 
-    if (appointment.status.value !== "HOLD" && appointment.status.value !== "CONFIRMED") {
+    if (
+      appointment.status.value !== "HOLD" &&
+      appointment.status.value !== "CONFIRMED"
+    ) {
       return left(
         new InvalidAppointmentStateError(
           "Only HOLD or CONFIRMED appointments can be cancelled.",

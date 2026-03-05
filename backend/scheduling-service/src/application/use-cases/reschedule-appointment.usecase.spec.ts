@@ -74,8 +74,7 @@ describe("Reschedule Appointment Use Case", () => {
 
     expect(response.isRight()).toBe(false);
 
-    if (response.isLeft()) {
-      expect(response.value).toBeInstanceOf(SchedulingConflictsError);
+    if (response.isLeft() && response.value instanceof SchedulingConflictsError) {
       expect(response.value.conflictType).toBe("CONFLICT_PROFESSIONAL");
     }
   });

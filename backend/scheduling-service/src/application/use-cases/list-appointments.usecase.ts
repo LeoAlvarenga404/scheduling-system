@@ -2,10 +2,8 @@ import { Either, left, right } from "src/domain/core/entities/either";
 import { UseCase } from "src/domain/core/entities/use-case";
 import { Appointment } from "src/domain/entities/appointment";
 import { AppointmentValidationError } from "src/domain/errors/appointment-validation.error";
-import {
-  AppointmentRepository,
-  ListAppointmentsFilters,
-} from "src/domain/repositories/appointment.repository";
+import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
+import { ListAppointmentsFilters } from "src/domain/repositories/appointment.repository.types";
 
 export type ListAppointmentsRequest = ListAppointmentsFilters;
 
@@ -16,9 +14,10 @@ export type ListAppointmentsOutput = Either<
   }
 >;
 
-export class ListAppointmentsUseCase
-  implements UseCase<ListAppointmentsRequest, ListAppointmentsOutput>
-{
+export class ListAppointmentsUseCase implements UseCase<
+  ListAppointmentsRequest,
+  ListAppointmentsOutput
+> {
   constructor(private appointmentRepository: AppointmentRepository) {}
 
   async execute({

@@ -4,6 +4,7 @@ import { Appointment } from "src/domain/entities/appointment";
 import { AppointmentValidationError } from "src/domain/errors/appointment-validation.error";
 import { IdempotencyKeyRequiredError } from "src/domain/errors/idempotency-key-required.error";
 import { SchedulingConflictsError } from "src/domain/errors/scheduling-conflicts.error";
+import { AppointmentHoldCreatedEvent } from "src/domain/events/appointment-hold-created.event";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 import { AppointmentStatus } from "src/domain/value-objects/appointment-status.vo";
 
@@ -24,15 +25,18 @@ export interface CreateHoldAppointmentRequest {
 }
 
 export type CreateHoldAppointmentOutput = Either<
-  AppointmentValidationError | IdempotencyKeyRequiredError | SchedulingConflictsError,
+  | AppointmentValidationError
+  | IdempotencyKeyRequiredError
+  | SchedulingConflictsError,
   {
     appointment: Appointment;
   }
 >;
 
-export class CreateHoldAppointmentUseCase
-  implements UseCase<CreateHoldAppointmentRequest, CreateHoldAppointmentOutput>
-{
+export class CreateHoldAppointmentUseCase implements UseCase<
+  CreateHoldAppointmentRequest,
+  CreateHoldAppointmentOutput
+> {
   constructor(private appointmentRepository: AppointmentRepository) {}
 
   async execute({
@@ -67,16 +71,21 @@ export class CreateHoldAppointmentUseCase
 
     if (!Number.isInteger(holdTtlSeconds) || holdTtlSeconds <= 0) {
       return left(
-        new AppointmentValidationError("holdTtlSeconds must be a positive integer."),
+        new AppointmentValidationError(
+          "holdTtlSeconds must be a positive integer.",
+        ),
       );
     }
 
     const referenceDate = now ?? new Date();
-    const holdExpiresAt = new Date(referenceDate.getTime() + holdTtlSeconds * 1000);
-    const normalizedParticipants = Appointment.normalizeParticipantProfessionalIds(
-      participantProfessionalIds,
-      responsibleProfessionalId,
+    const holdExpiresAt = new Date(
+      referenceDate.getTime() + holdTtlSeconds * 1000,
     );
+    const normalizedParticipants =
+      Appointment.normalizeParticipantProfessionalIds(
+        participantProfessionalIds,
+        responsibleProfessionalId,
+      );
 
     let appointment: Appointment;
 
@@ -93,6 +102,9 @@ export class CreateHoldAppointmentUseCase
         externalRef,
         holdExpiresAt,
       });
+
+  
+      
     } catch (error) {
       return left(
         error instanceof AppointmentValidationError
@@ -102,7 +114,9 @@ export class CreateHoldAppointmentUseCase
     }
 
     const conflictType =
-      await this.appointmentRepository.createAppointmentIfNoConflicts(appointment);
+      await this.appointmentRepository.createAppointmentIfNoConflicts(
+        appointment,
+      );
 
     if (conflictType) {
       return left(new SchedulingConflictsError(conflictType));

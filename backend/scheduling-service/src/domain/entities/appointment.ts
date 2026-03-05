@@ -3,6 +3,7 @@ import { UniqueEntityID } from "../core/entities/unique-entity-id";
 import { AppointmentValidationError } from "../errors/appointment-validation.error";
 import { HoldExpiredError } from "../errors/hold-expired.error";
 import { InvalidAppointmentStateError } from "../errors/invalid-appointment-state.error";
+import { AppointmentHoldCreatedEvent } from "../events/appointment-hold-created.event";
 import { AppointmentId } from "../value-objects/appointment-id.vo";
 import { AppointmentStatus } from "../value-objects/appointment-status.vo";
 import { HoldExpiration } from "../value-objects/hold-expiration.vo";
@@ -351,17 +352,22 @@ export class Appointment extends Entity<AppointmentState> {
       return undefined;
     }
 
-    const responsibleProfessionalIdValue =
-      Appointment.normalizeProfessionalId(responsibleProfessionalId).value;
+    const responsibleProfessionalIdValue = Appointment.normalizeProfessionalId(
+      responsibleProfessionalId,
+    ).value;
     const uniqueParticipants = Array.from(
       new Set(
         participantProfessionalIds
-          .map((participantProfessionalId) =>
-            Appointment.normalizeProfessionalId(participantProfessionalId).value,
+          .map(
+            (participantProfessionalId) =>
+              Appointment.normalizeProfessionalId(participantProfessionalId)
+                .value,
           )
           .filter(Boolean),
       ),
-    ).filter((professionalId) => professionalId !== responsibleProfessionalIdValue);
+    ).filter(
+      (professionalId) => professionalId !== responsibleProfessionalIdValue,
+    );
 
     return uniqueParticipants.length > 0 ? uniqueParticipants : undefined;
   }
@@ -421,6 +427,16 @@ export class Appointment extends Entity<AppointmentState> {
         metadata: props.metadata,
       },
       Appointment.normalizeUniqueEntityID(id),
+    );
+
+    appointment.addDomainEvent(
+      new AppointmentHoldCreatedEvent(
+        appointment.appointmentId.value,
+        appointment.tenantId.value,
+        appointment.roomId.value,
+        appointment.startAt,
+        appointment.endAt,
+      ),
     );
 
     return appointment;
@@ -552,7 +568,9 @@ export class Appointment extends Entity<AppointmentState> {
     }
 
     if (timeslot.end.getTime() <= timeslot.start.getTime()) {
-      throw new AppointmentValidationError("endAt must be greater than startAt.");
+      throw new AppointmentValidationError(
+        "endAt must be greater than startAt.",
+      );
     }
 
     if (participants?.contains(responsibleProfessionalId)) {

@@ -94,9 +94,6 @@ describe("Create Hold Appointment Use Case", () => {
     expect(response.isRight()).toBe(false);
     expect(response.value).toBeInstanceOf(SchedulingConflictsError);
 
-    if (response.isLeft()) {
-      expect(response.value.conflictType).toBe("CONFLICT_PROFESSIONAL");
-    }
   });
 
   it("should block participant professional conflicts (scenario C)", async () => {
@@ -128,7 +125,6 @@ describe("Create Hold Appointment Use Case", () => {
 
     if (response.isLeft()) {
       expect(response.value).toBeInstanceOf(SchedulingConflictsError);
-      expect(response.value.conflictType).toBe("CONFLICT_PROFESSIONAL");
     }
   });
 

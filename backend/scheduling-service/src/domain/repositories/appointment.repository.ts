@@ -57,8 +57,13 @@ export abstract class AppointmentRepository {
   abstract findConflicts(
     params: AppointmentConflictCheckParams,
   ): Promise<AppointmentConflictResult>;
-  abstract listExpiredHolds(now: Date, tenantId?: string): Promise<Appointment[]>;
-  abstract listAppointments(filters: ListAppointmentsFilters): Promise<Appointment[]>;
+  abstract listExpiredHolds(
+    now: Date,
+    tenantId?: string,
+  ): Promise<Appointment[]>;
+  abstract listAppointments(
+    filters: ListAppointmentsFilters,
+  ): Promise<Appointment[]>;
   abstract findIdempotencyRecord<TResponse = unknown>(
     params: FindIdempotencyRecordParams,
   ): Promise<IdempotencyRecord<TResponse> | null>;

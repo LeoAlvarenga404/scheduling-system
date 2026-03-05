@@ -33,13 +33,10 @@ export type ConfirmAppointmentWhenPaidOutput = Either<
   }
 >;
 
-export class ConfirmAppointmentWhenPaidUseCase
-  implements
-    UseCase<
-      ConfirmAppointmentWhenPaidRequest,
-      ConfirmAppointmentWhenPaidOutput
-    >
-{
+export class ConfirmAppointmentWhenPaidUseCase implements UseCase<
+  ConfirmAppointmentWhenPaidRequest,
+  ConfirmAppointmentWhenPaidOutput
+> {
   constructor(private appointmentRepository: AppointmentRepository) {}
 
   async execute({
@@ -73,7 +70,9 @@ export class ConfirmAppointmentWhenPaidUseCase
     }
 
     if (!(paidAt instanceof Date) || Number.isNaN(paidAt.getTime())) {
-      return left(new AppointmentValidationError("paidAt must be a valid Date."));
+      return left(
+        new AppointmentValidationError("paidAt must be a valid Date."),
+      );
     }
 
     if (!externalRef && !appointmentId) {

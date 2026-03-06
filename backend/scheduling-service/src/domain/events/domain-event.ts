@@ -1,9 +1,4 @@
-export abstract class DomainEvent {
-  public readonly occurredAt: Date;
-
-  constructor() {
-    this.occurredAt = new Date();
-  }
-
-  abstract eventName: string;
+export interface DomainEvent {
+  eventName: string;
+  occurredAt: Date;
 }

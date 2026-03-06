@@ -1,5 +1,10 @@
-import { Entity } from "../core/entities/entity";
-import { UniqueEntityID } from "../core/entities/unique-entity-id";
+import { randomUUID } from "node:crypto";
+import type {
+  AppointmentMetadata,
+  AppointmentProps,
+  AppointmentStatus,
+  RescheduleAppointmentProps,
+} from "./appointment.types";
 import { AppointmentValidationError } from "../errors/appointment-validation.error";
 import { HoldExpiredError } from "../errors/hold-expired.error";
 import { InvalidAppointmentStateError } from "../errors/invalid-appointment-state.error";
@@ -9,128 +14,68 @@ import { AppointmentConfirmedEvent } from "../events/appointment-confirmed.event
 import { AppointmentCreatedEvent } from "../events/appointment-created.event";
 import { AppointmentExpiredEvent } from "../events/appointment-expired.event";
 import { AppointmentRescheduledEvent } from "../events/appointment-rescheduled.event";
-import { AppointmentId } from "../value-objects/appointment-id.vo";
-import { AppointmentStatus } from "../value-objects/appointment-status.vo";
-import { HoldExpiration } from "../value-objects/hold-expiration.vo";
-import { Participants } from "../value-objects/participants.vo";
-import { ProfessionalId } from "../value-objects/professional-id.vo";
-import { RoomId } from "../value-objects/room-id.vo";
-import { TenantId } from "../value-objects/tenant-id.vo";
-import { TimeSlot } from "../value-objects/time-slot.vo";
-import type {
-  AppointmentProps,
-  AppointmentState,
-  RescheduleAppointmentProps,
-} from "./appointment.types";
+import type { DomainEvent } from "../events/domain-event";
 
-export class Appointment extends Entity<AppointmentState> {
-  get appointmentId(): AppointmentId {
-    return AppointmentId.fromUniqueEntityID(this.id);
-  }
+const VALID_STATUSES: ReadonlySet<AppointmentStatus> = new Set([
+  "HOLD",
+  "CONFIRMED",
+  "CANCELLED",
+  "EXPIRED",
+  "COMPLETED",
+]);
 
-  get tenantId() {
-    return this.props.tenantId;
-  }
+export class Appointment {
+  private domainEvents: DomainEvent[] = [];
 
-  get roomId() {
-    return this.props.roomId;
-  }
-
-  get timeslot() {
-    return this.props.timeslot;
-  }
-
-  get startAt() {
-    return this.props.timeslot.start;
-  }
-
-  get endAt() {
-    return this.props.timeslot.end;
-  }
-
-  get status() {
-    return this.props.status;
-  }
-
-  get responsibleProfessionalId() {
-    return this.props.responsibleProfessionalId;
-  }
-
-  get participants() {
-    return this.props.participants;
-  }
-
-  get participantProfessionalIds(): string[] | undefined {
-    return this.props.participants?.toValues();
-  }
+  private constructor(
+    public readonly id: string,
+    public readonly tenantId: string,
+    public roomId: string,
+    public startAt: Date,
+    public endAt: Date,
+    public status: AppointmentStatus,
+    public responsibleProfessionalId: string,
+    public participantProfessionalIds: string[] | undefined,
+    public customerId: string | undefined,
+    public holdExpiresAt: Date | undefined,
+    public externalRef: string | undefined,
+    public paymentRef: string | undefined,
+    public paidAt: Date | undefined,
+    public creationIdempotencyKey: string | undefined,
+    public paymentConfirmationKey: string | undefined,
+    public readonly createdAt: Date,
+    public updatedAt: Date,
+    public version: number,
+    public metadata: AppointmentMetadata | undefined,
+  ) {}
 
   get involvedProfessionalIds(): string[] {
     return [
-      this.props.responsibleProfessionalId.value,
-      ...(this.props.participants?.toValues() ?? []),
+      this.responsibleProfessionalId,
+      ...(this.participantProfessionalIds ?? []),
     ];
   }
 
-  get customerId() {
-    return this.props.customerId;
-  }
-
-  get holdExpiration() {
-    return this.props.holdExpiration;
-  }
-
-  get holdExpiresAt() {
-    return this.props.holdExpiration?.value;
-  }
-
-  get externalRef() {
-    return this.props.externalRef;
-  }
-
-  get paymentRef() {
-    return this.props.paymentRef;
-  }
-
-  get paidAt() {
-    return this.props.paidAt;
-  }
-
-  get createdAt() {
-    return this.props.createdAt;
-  }
-
-  get updatedAt() {
-    return this.props.updatedAt;
-  }
-
-  get version() {
-    return this.props.version;
-  }
-
-  get metadata() {
-    return this.props.metadata;
-  }
-
   isHoldExpired(now = new Date()): boolean {
-    if (this.status.value !== "HOLD") {
+    if (this.status !== "HOLD") {
       return false;
     }
 
-    if (!this.props.holdExpiration) {
+    if (!this.holdExpiresAt) {
       throw new AppointmentValidationError(
         "holdExpiresAt is mandatory when appointment status is HOLD.",
       );
     }
 
-    return this.props.holdExpiration.isExpired(now);
+    return this.holdExpiresAt.getTime() <= now.getTime();
   }
 
-  confirm(now = new Date()) {
-    if (this.status.value === "CONFIRMED") {
+  confirm(now = new Date()): void {
+    if (this.status === "CONFIRMED") {
       return;
     }
 
-    if (this.status.value !== "HOLD") {
+    if (this.status !== "HOLD") {
       throw new InvalidAppointmentStateError(
         "Only appointments in HOLD can be confirmed.",
       );
@@ -140,15 +85,11 @@ export class Appointment extends Entity<AppointmentState> {
       throw new HoldExpiredError();
     }
 
-    this.props.status = this.status.changeTo("CONFIRMED");
-    this.props.holdExpiration = undefined;
+    this.status = "CONFIRMED";
+    this.holdExpiresAt = undefined;
 
-    this.addDomainEvent(
-      new AppointmentConfirmedEvent(
-        this.appointmentId.value,
-        this.props.tenantId.value,
-        this.props.paymentRef,
-      ),
+    this.recordEvent(
+      new AppointmentConfirmedEvent(this.id, this.tenantId, this.paymentRef),
     );
     this.touch();
   }
@@ -156,21 +97,25 @@ export class Appointment extends Entity<AppointmentState> {
   confirmWhenPaid({
     paymentRef,
     paidAt,
+    idempotencyKey,
     now = new Date(),
   }: {
     paymentRef: string;
     paidAt: Date;
+    idempotencyKey?: string;
     now?: Date;
-  }) {
-    if (!paymentRef) {
+  }): void {
+    const normalizedPaymentRef = Appointment.normalizeOptionalString(paymentRef);
+
+    if (!normalizedPaymentRef) {
       throw new AppointmentValidationError("paymentRef is mandatory.");
     }
 
-    if (!(paidAt instanceof Date) || Number.isNaN(paidAt.getTime())) {
+    if (!Appointment.isValidDate(paidAt)) {
       throw new AppointmentValidationError("paidAt must be a valid Date.");
     }
 
-    if (this.status.value !== "HOLD") {
+    if (this.status !== "HOLD") {
       throw new InvalidAppointmentStateError(
         "Only appointments in HOLD can be confirmed by payment.",
       );
@@ -180,47 +125,63 @@ export class Appointment extends Entity<AppointmentState> {
       throw new HoldExpiredError();
     }
 
-    this.props.paymentRef = paymentRef;
-    this.props.paidAt = paidAt;
-    this.props.status = this.status.changeTo("CONFIRMED");
-    this.props.holdExpiration = undefined;
+    this.paymentRef = normalizedPaymentRef;
+    this.paidAt = new Date(paidAt.getTime());
+    this.status = "CONFIRMED";
+    this.holdExpiresAt = undefined;
+    this.paymentConfirmationKey =
+      Appointment.normalizeOptionalString(idempotencyKey) ??
+      this.paymentConfirmationKey;
 
-    this.addDomainEvent(
-      new AppointmentConfirmedEvent(
-        this.appointmentId.value,
-        this.props.tenantId.value,
-        paymentRef,
-      ),
+    this.recordEvent(
+      new AppointmentConfirmedEvent(this.id, this.tenantId, normalizedPaymentRef),
     );
     this.touch();
   }
 
-  cancel(details?: { reason?: string; cancelledBy?: string }) {
-    if (this.status.value === "CANCELLED" || this.status.value === "EXPIRED") {
+  registerPaymentConfirmationKey(key: string): boolean {
+    const normalizedKey = Appointment.normalizeOptionalString(key);
+
+    if (!normalizedKey) {
+      throw new AppointmentValidationError("idempotencyKey is mandatory.");
+    }
+
+    if (this.paymentConfirmationKey === normalizedKey) {
+      return false;
+    }
+
+    this.paymentConfirmationKey = normalizedKey;
+    this.touch();
+
+    return true;
+  }
+
+  cancel(details?: { reason?: string; cancelledBy?: string }): void {
+    if (this.status === "CANCELLED" || this.status === "EXPIRED") {
       return;
     }
 
-    if (this.status.value !== "HOLD" && this.status.value !== "CONFIRMED") {
+    if (this.status !== "HOLD" && this.status !== "CONFIRMED") {
       throw new InvalidAppointmentStateError(
         "Only HOLD or CONFIRMED appointments can be cancelled.",
       );
     }
 
-    this.props.status = this.status.changeTo("CANCELLED");
-    this.props.holdExpiration = undefined;
+    this.status = "CANCELLED";
+    this.holdExpiresAt = undefined;
 
     if (details?.reason || details?.cancelledBy) {
-      this.props.metadata = {
-        ...(this.props.metadata ?? {}),
+      this.metadata = {
+        ...(this.metadata ?? {}),
         cancelledReason: details.reason,
         cancelledBy: details.cancelledBy,
       };
     }
 
-    this.addDomainEvent(
+    this.recordEvent(
       new AppointmentCancelledEvent(
-        this.appointmentId.value,
-        this.props.tenantId.value,
+        this.id,
+        this.tenantId,
         details?.reason,
         details?.cancelledBy,
       ),
@@ -228,29 +189,24 @@ export class Appointment extends Entity<AppointmentState> {
     this.touch();
   }
 
-  complete() {
-    if (this.status.value === "COMPLETED") {
+  complete(): void {
+    if (this.status === "COMPLETED") {
       return;
     }
 
-    if (this.status.value !== "CONFIRMED") {
+    if (this.status !== "CONFIRMED") {
       throw new InvalidAppointmentStateError(
         "Only CONFIRMED appointments can be completed.",
       );
     }
 
-    this.props.status = this.status.changeTo("COMPLETED");
-    this.addDomainEvent(
-      new AppointmentCompletedEvent(
-        this.appointmentId.value,
-        this.props.tenantId.value,
-      ),
-    );
+    this.status = "COMPLETED";
+    this.recordEvent(new AppointmentCompletedEvent(this.id, this.tenantId));
     this.touch();
   }
 
   expireHold(now = new Date()): boolean {
-    if (this.status.value !== "HOLD") {
+    if (this.status !== "HOLD") {
       return false;
     }
 
@@ -258,14 +214,9 @@ export class Appointment extends Entity<AppointmentState> {
       return false;
     }
 
-    this.props.status = this.status.changeTo("EXPIRED");
-    this.props.holdExpiration = undefined;
-    this.addDomainEvent(
-      new AppointmentExpiredEvent(
-        this.appointmentId.value,
-        this.props.tenantId.value,
-      ),
-    );
+    this.status = "EXPIRED";
+    this.holdExpiresAt = undefined;
+    this.recordEvent(new AppointmentExpiredEvent(this.id, this.tenantId));
     this.touch();
 
     return true;
@@ -275,319 +226,269 @@ export class Appointment extends Entity<AppointmentState> {
     roomId,
     startAt,
     endAt,
-    timeslot,
     responsibleProfessionalId,
     participantProfessionalIds,
-    participants,
     resetToHold,
     holdExpiresAt,
-    holdExpiration,
-  }: RescheduleAppointmentProps) {
-    const normalizedRoomId = Appointment.normalizeRoomId(roomId);
-    const normalizedTimeSlot = Appointment.normalizeTimeSlot({
-      startAt,
-      endAt,
-      timeslot,
-    });
-    const normalizedResponsibleProfessionalId =
-      Appointment.normalizeProfessionalId(responsibleProfessionalId);
-    const normalizedParticipants = Appointment.normalizeParticipants({
-      participants,
+  }: RescheduleAppointmentProps): void {
+    const nextRoomId = Appointment.requireNonEmptyString(roomId, "roomId is mandatory.");
+    const nextResponsibleProfessionalId = Appointment.requireNonEmptyString(
+      responsibleProfessionalId,
+      "responsibleProfessionalId is mandatory.",
+    );
+    Appointment.assertValidInterval(startAt, endAt);
+
+    const nextParticipants = Appointment.normalizeParticipantProfessionalIds(
       participantProfessionalIds,
-      responsibleProfessionalId: normalizedResponsibleProfessionalId,
-    });
-    const normalizedHoldExpiration = resetToHold
-      ? Appointment.normalizeHoldExpiration({
-          holdExpiresAt,
-          holdExpiration,
-        })
-      : undefined;
-
-    Appointment.assertValidSchedule({
-      tenantId: this.tenantId,
-      roomId: normalizedRoomId,
-      timeslot: normalizedTimeSlot,
-      status: resetToHold ? AppointmentStatus.create("HOLD") : this.status,
-      responsibleProfessionalId: normalizedResponsibleProfessionalId,
-      participants: normalizedParticipants,
-      holdExpiration: normalizedHoldExpiration,
-    });
-
-    const previousRoomId = this.props.roomId.value;
-    const previousStartAt = this.props.timeslot.start;
-    const previousEndAt = this.props.timeslot.end;
-
-    this.props.roomId = normalizedRoomId;
-    this.props.timeslot = normalizedTimeSlot;
-    this.props.responsibleProfessionalId = normalizedResponsibleProfessionalId;
-    this.props.participants = normalizedParticipants;
+      nextResponsibleProfessionalId,
+    );
 
     if (resetToHold) {
-      this.props.status = this.status.changeTo("HOLD");
-      this.props.holdExpiration = normalizedHoldExpiration;
-      this.props.paymentRef = undefined;
-      this.props.paidAt = undefined;
+      if (!holdExpiresAt || !Appointment.isValidDate(holdExpiresAt)) {
+        throw new AppointmentValidationError(
+          "holdExpiresAt is mandatory when resetting appointment to HOLD.",
+        );
+      }
+
+      this.status = "HOLD";
+      this.holdExpiresAt = new Date(holdExpiresAt.getTime());
+      this.paymentRef = undefined;
+      this.paidAt = undefined;
+      this.paymentConfirmationKey = undefined;
     }
 
-    this.addDomainEvent(
+    const previousRoomId = this.roomId;
+    const previousStartAt = new Date(this.startAt.getTime());
+    const previousEndAt = new Date(this.endAt.getTime());
+
+    this.roomId = nextRoomId;
+    this.startAt = new Date(startAt.getTime());
+    this.endAt = new Date(endAt.getTime());
+    this.responsibleProfessionalId = nextResponsibleProfessionalId;
+    this.participantProfessionalIds = nextParticipants;
+
+    this.recordEvent(
       new AppointmentRescheduledEvent(
-        this.appointmentId.value,
-        this.props.tenantId.value,
+        this.id,
+        this.tenantId,
         previousRoomId,
-        this.props.roomId.value,
+        this.roomId,
         previousStartAt,
         previousEndAt,
-        this.props.timeslot.start,
-        this.props.timeslot.end,
+        this.startAt,
+        this.endAt,
       ),
     );
+
     this.touch();
   }
 
-  private touch() {
-    this.props.updatedAt = new Date();
-    this.props.version = (this.props.version ?? 0) + 1;
+  getDomainEvents(): DomainEvent[] {
+    return [...this.domainEvents];
+  }
+
+  pullDomainEvents(): DomainEvent[] {
+    const events = [...this.domainEvents];
+    this.domainEvents = [];
+
+    return events;
+  }
+
+  clearDomainEvents(): void {
+    this.domainEvents = [];
+  }
+
+  clearEvents(): void {
+    this.clearDomainEvents();
   }
 
   static normalizeParticipantProfessionalIds(
-    participantProfessionalIds: Array<ProfessionalId | string> | undefined,
-    responsibleProfessionalId: ProfessionalId | string,
+    participantProfessionalIds: string[] | undefined,
+    responsibleProfessionalId: string,
   ): string[] | undefined {
+    const normalizedResponsibleId = Appointment.requireNonEmptyString(
+      responsibleProfessionalId,
+      "responsibleProfessionalId is mandatory.",
+    );
+
     if (!participantProfessionalIds?.length) {
       return undefined;
     }
 
-    const responsibleProfessionalIdValue = Appointment.normalizeProfessionalId(
-      responsibleProfessionalId,
-    ).value;
     const uniqueParticipants = Array.from(
       new Set(
         participantProfessionalIds
-          .map(
-            (participantProfessionalId) =>
-              Appointment.normalizeProfessionalId(participantProfessionalId)
-                .value,
+          .map((participantProfessionalId) =>
+            Appointment.normalizeOptionalString(participantProfessionalId),
           )
-          .filter(Boolean),
+          .filter((participantProfessionalId): participantProfessionalId is string =>
+            Boolean(participantProfessionalId),
+          ),
       ),
     ).filter(
-      (professionalId) => professionalId !== responsibleProfessionalIdValue,
+      (participantProfessionalId) =>
+        participantProfessionalId !== normalizedResponsibleId,
     );
 
     return uniqueParticipants.length > 0 ? uniqueParticipants : undefined;
   }
 
-  static create(
-    props: AppointmentProps,
-    id?: UniqueEntityID | AppointmentId,
+  static create(props: AppointmentProps): Appointment {
+    return Appointment.build(props, true);
+  }
+
+  static rehydrate(
+    props: AppointmentProps & {
+      id: string;
+      createdAt: Date;
+      updatedAt: Date;
+      version: number;
+    },
   ): Appointment {
-    const tenantId = Appointment.normalizeTenantId(props.tenantId);
-    const roomId = Appointment.normalizeRoomId(props.roomId);
-    const timeslot = Appointment.normalizeTimeSlot({
-      startAt: props.startAt,
-      endAt: props.endAt,
-      timeslot: props.timeslot,
-    });
-    const responsibleProfessionalId = Appointment.normalizeProfessionalId(
+    return Appointment.build(props, false);
+  }
+
+  private static build(
+    props: AppointmentProps,
+    emitCreatedEvent: boolean,
+  ): Appointment {
+    const tenantId = Appointment.requireNonEmptyString(
+      props.tenantId,
+      "tenantId is mandatory.",
+    );
+    const roomId = Appointment.requireNonEmptyString(
+      props.roomId,
+      "roomId is mandatory.",
+    );
+    const responsibleProfessionalId = Appointment.requireNonEmptyString(
       props.responsibleProfessionalId,
-    );
-    const participants = Appointment.normalizeParticipants({
-      participants: props.participants,
-      participantProfessionalIds: props.participantProfessionalIds,
-      responsibleProfessionalId,
-    });
-    const holdExpiration = Appointment.normalizeHoldExpiration({
-      holdExpiresAt: props.holdExpiresAt,
-      holdExpiration: props.holdExpiration,
-    });
-
-    Appointment.assertValidSchedule({
-      tenantId,
-      roomId,
-      timeslot,
-      status: props.status,
-      responsibleProfessionalId,
-      participants,
-      holdExpiration,
-    });
-
-    const now = new Date();
-
-    const appointment = new Appointment(
-      {
-        tenantId,
-        roomId,
-        timeslot,
-        status: props.status,
-        responsibleProfessionalId,
-        participants,
-        customerId: props.customerId,
-        holdExpiration,
-        externalRef: props.externalRef,
-        paymentRef: props.paymentRef,
-        paidAt: props.paidAt,
-        createdAt: props.createdAt ?? now,
-        updatedAt: props.updatedAt ?? props.createdAt ?? now,
-        version: props.version ?? 0,
-        metadata: props.metadata,
-      },
-      Appointment.normalizeUniqueEntityID(id),
+      "responsibleProfessionalId is mandatory.",
     );
 
-    appointment.addDomainEvent(
-      new AppointmentCreatedEvent(
-        appointment.appointmentId.value,
-        appointment.tenantId.value,
-        appointment.roomId.value,
-        appointment.startAt,
-        appointment.endAt,
-      ),
-    );
+    Appointment.assertValidInterval(props.startAt, props.endAt);
+    Appointment.assertValidStatus(props.status);
 
-    return appointment;
-  }
-
-  private static normalizeUniqueEntityID(
-    id?: UniqueEntityID | AppointmentId,
-  ): UniqueEntityID | undefined {
-    if (!id) {
-      return undefined;
-    }
-
-    if (id instanceof UniqueEntityID) {
-      return id;
-    }
-
-    return id.toUniqueEntityID();
-  }
-
-  private static normalizeTenantId(tenantId: TenantId | string): TenantId {
-    return tenantId instanceof TenantId ? tenantId : TenantId.create(tenantId);
-  }
-
-  private static normalizeRoomId(roomId: RoomId | string): RoomId {
-    return roomId instanceof RoomId ? roomId : RoomId.create(roomId);
-  }
-
-  private static normalizeProfessionalId(
-    professionalId: ProfessionalId | string,
-  ): ProfessionalId {
-    return professionalId instanceof ProfessionalId
-      ? professionalId
-      : ProfessionalId.create(professionalId);
-  }
-
-  private static normalizeHoldExpiration({
-    holdExpiresAt,
-    holdExpiration,
-  }: {
-    holdExpiresAt?: Date;
-    holdExpiration?: HoldExpiration;
-  }): HoldExpiration | undefined {
-    if (holdExpiration) {
-      return holdExpiration;
-    }
-
-    if (!holdExpiresAt) {
-      return undefined;
-    }
-
-    return HoldExpiration.create(holdExpiresAt);
-  }
-
-  private static normalizeTimeSlot({
-    startAt,
-    endAt,
-    timeslot,
-  }: {
-    startAt?: Date;
-    endAt?: Date;
-    timeslot?: TimeSlot;
-  }): TimeSlot {
-    if (timeslot) {
-      return timeslot;
-    }
-
-    if (!startAt || !endAt) {
-      throw new AppointmentValidationError("startAt and endAt are mandatory.");
-    }
-
-    return TimeSlot.create(startAt, endAt);
-  }
-
-  private static normalizeParticipants({
-    participants,
-    participantProfessionalIds,
-    responsibleProfessionalId,
-  }: {
-    participants?: Participants;
-    participantProfessionalIds?: Array<ProfessionalId | string>;
-    responsibleProfessionalId: ProfessionalId;
-  }): Participants | undefined {
-    const normalizedParticipantProfessionalIds =
+    const participantProfessionalIds =
       Appointment.normalizeParticipantProfessionalIds(
-        participants?.professionals ?? participantProfessionalIds,
+        props.participantProfessionalIds,
         responsibleProfessionalId,
       );
 
-    if (!normalizedParticipantProfessionalIds) {
-      return undefined;
-    }
+    const holdExpiresAt = props.holdExpiresAt
+      ? Appointment.cloneDate(props.holdExpiresAt, "holdExpiresAt must be a valid Date.")
+      : undefined;
 
-    return Participants.create(
-      normalizedParticipantProfessionalIds.map((participantProfessionalId) =>
-        ProfessionalId.create(participantProfessionalId),
-      ),
-    );
-  }
-
-  private static assertValidSchedule({
-    tenantId,
-    roomId,
-    responsibleProfessionalId,
-    participants,
-    timeslot,
-    status,
-    holdExpiration,
-  }: {
-    tenantId: TenantId;
-    roomId: RoomId;
-    responsibleProfessionalId: ProfessionalId;
-    participants?: Participants;
-    timeslot: TimeSlot;
-    status: AppointmentStatus;
-    holdExpiration?: HoldExpiration;
-  }) {
-    if (!tenantId.value) {
-      throw new AppointmentValidationError("tenantId is mandatory.");
-    }
-
-    if (!roomId.value) {
-      throw new AppointmentValidationError("roomId is mandatory.");
-    }
-
-    if (!responsibleProfessionalId.value) {
-      throw new AppointmentValidationError(
-        "responsibleProfessionalId is mandatory.",
-      );
-    }
-
-    if (timeslot.end.getTime() <= timeslot.start.getTime()) {
-      throw new AppointmentValidationError(
-        "endAt must be greater than startAt.",
-      );
-    }
-
-    if (participants?.contains(responsibleProfessionalId)) {
-      throw new AppointmentValidationError(
-        "participantProfessionalIds cannot contain responsibleProfessionalId.",
-      );
-    }
-
-    if (status.value === "HOLD" && !holdExpiration) {
+    if (props.status === "HOLD" && !holdExpiresAt) {
       throw new AppointmentValidationError(
         "holdExpiresAt is mandatory when status is HOLD.",
       );
     }
+
+    const now = new Date();
+    const createdAt = props.createdAt
+      ? Appointment.cloneDate(props.createdAt, "createdAt must be a valid Date.")
+      : now;
+    const updatedAt = props.updatedAt
+      ? Appointment.cloneDate(props.updatedAt, "updatedAt must be a valid Date.")
+      : createdAt;
+
+    const appointment = new Appointment(
+      Appointment.normalizeOptionalString(props.id) ?? randomUUID(),
+      tenantId,
+      roomId,
+      new Date(props.startAt.getTime()),
+      new Date(props.endAt.getTime()),
+      props.status,
+      responsibleProfessionalId,
+      participantProfessionalIds,
+      Appointment.normalizeOptionalString(props.customerId),
+      holdExpiresAt,
+      Appointment.normalizeOptionalString(props.externalRef),
+      Appointment.normalizeOptionalString(props.paymentRef),
+      props.paidAt
+        ? Appointment.cloneDate(props.paidAt, "paidAt must be a valid Date.")
+        : undefined,
+      Appointment.normalizeOptionalString(props.creationIdempotencyKey),
+      Appointment.normalizeOptionalString(props.paymentConfirmationKey),
+      createdAt,
+      updatedAt,
+      props.version ?? 0,
+      props.metadata,
+    );
+
+    if (emitCreatedEvent) {
+      appointment.recordEvent(
+        new AppointmentCreatedEvent(
+          appointment.id,
+          appointment.tenantId,
+          appointment.roomId,
+          appointment.startAt,
+          appointment.endAt,
+        ),
+      );
+    }
+
+    return appointment;
+  }
+
+  private static assertValidStatus(status: AppointmentStatus): void {
+    if (!VALID_STATUSES.has(status)) {
+      throw new AppointmentValidationError("status is invalid.");
+    }
+  }
+
+  private static assertValidInterval(startAt: Date, endAt: Date): void {
+    if (!Appointment.isValidDate(startAt)) {
+      throw new AppointmentValidationError("startAt must be a valid Date.");
+    }
+
+    if (!Appointment.isValidDate(endAt)) {
+      throw new AppointmentValidationError("endAt must be a valid Date.");
+    }
+
+    if (endAt.getTime() <= startAt.getTime()) {
+      throw new AppointmentValidationError("endAt must be greater than startAt.");
+    }
+  }
+
+  private static requireNonEmptyString(value: string, message: string): string {
+    const normalizedValue = Appointment.normalizeOptionalString(value);
+
+    if (!normalizedValue) {
+      throw new AppointmentValidationError(message);
+    }
+
+    return normalizedValue;
+  }
+
+  private static normalizeOptionalString(value?: string): string | undefined {
+    if (typeof value !== "string") {
+      return undefined;
+    }
+
+    const normalizedValue = value.trim();
+
+    return normalizedValue.length > 0 ? normalizedValue : undefined;
+  }
+
+  private static isValidDate(value: Date): boolean {
+    return value instanceof Date && !Number.isNaN(value.getTime());
+  }
+
+  private static cloneDate(value: Date, errorMessage: string): Date {
+    if (!Appointment.isValidDate(value)) {
+      throw new AppointmentValidationError(errorMessage);
+    }
+
+    return new Date(value.getTime());
+  }
+
+  private recordEvent(event: DomainEvent): void {
+    this.domainEvents.push(event);
+  }
+
+  private touch(): void {
+    this.updatedAt = new Date();
+    this.version += 1;
   }
 }

@@ -1,7 +1,8 @@
-import { DomainEvent } from "./domain-event";
+import type { DomainEvent } from "./domain-event";
 
-export class AppointmentCreatedEvent extends DomainEvent {
-  eventName = "appointment.created";
+export class AppointmentCreatedEvent implements DomainEvent {
+  readonly eventName = "appointment.created";
+  readonly occurredAt = new Date();
 
   constructor(
     public readonly appointmentId: string,
@@ -9,7 +10,5 @@ export class AppointmentCreatedEvent extends DomainEvent {
     public readonly roomId: string,
     public readonly startAt: Date,
     public readonly endAt: Date,
-  ) {
-    super();
-  }
+  ) {}
 }

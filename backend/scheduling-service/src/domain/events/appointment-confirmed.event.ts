@@ -1,13 +1,12 @@
-import { DomainEvent } from "./domain-event";
+import type { DomainEvent } from "./domain-event";
 
-export class AppointmentConfirmedEvent extends DomainEvent {
-  eventName = "appointment.confirmed";
+export class AppointmentConfirmedEvent implements DomainEvent {
+  readonly eventName = "appointment.confirmed";
+  readonly occurredAt = new Date();
 
   constructor(
     public readonly appointmentId: string,
     public readonly tenantId: string,
     public readonly paymentRef?: string,
-  ) {
-    super();
-  }
+  ) {}
 }

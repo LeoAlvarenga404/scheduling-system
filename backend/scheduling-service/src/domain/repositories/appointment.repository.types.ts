@@ -1,5 +1,5 @@
 import type { Appointment } from "../entities/appointment";
-import type { Status } from "../value-objects/appointment-status.vo";
+import type { AppointmentStatus } from "../entities/appointment.types";
 
 export interface AppointmentConflictCheckParams {
   tenantId: string;
@@ -22,19 +22,5 @@ export interface ListAppointmentsFilters {
   roomId?: string;
   responsibleProfessionalId?: string;
   participantProfessionalId?: string;
-  status?: Status;
-}
-
-export interface FindIdempotencyRecordParams {
-  tenantId: string;
-  key: string;
-  operation: string;
-}
-
-export interface IdempotencyRecord<TResponse = unknown> {
-  tenantId: string;
-  key: string;
-  operation: string;
-  responseSnapshot: TResponse;
-  createdAt: Date;
+  status?: AppointmentStatus;
 }

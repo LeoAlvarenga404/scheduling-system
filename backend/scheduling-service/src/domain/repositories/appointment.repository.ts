@@ -3,39 +3,36 @@ import type { SchedulingConflictType } from "../core/types/scheduling-conflict.t
 import type {
   AppointmentConflictCheckParams,
   AppointmentConflictResult,
-  FindIdempotencyRecordParams,
-  IdempotencyRecord,
   ListAppointmentsFilters,
 } from "./appointment.repository.types";
 
 export abstract class AppointmentRepository {
-  abstract createAppointment(appointment: Appointment): Promise<void>;
-  abstract createAppointmentIfNoConflicts(
+  abstract save(appointment: Appointment): Promise<void>;
+  abstract createIfNoConflicts(
     appointment: Appointment,
   ): Promise<SchedulingConflictType | null>;
-  abstract updateAppointment(appointment: Appointment): Promise<void>;
-  abstract getAppointmentById(
+  abstract findById(
     appointmentId: string,
     tenantId: string,
   ): Promise<Appointment | null>;
-  abstract getAppointmentByExternalRef(
+  abstract findByExternalRef(
     externalRef: string,
     tenantId: string,
   ): Promise<Appointment | null>;
-  abstract findConflicts(
+  abstract findByCreationIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<Appointment | null>;
+  abstract findByPaymentConfirmationKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<Appointment | null>;
+  abstract findConflictingAppointments(
     params: AppointmentConflictCheckParams,
   ): Promise<AppointmentConflictResult>;
   abstract listExpiredHolds(
     now: Date,
     tenantId?: string,
   ): Promise<Appointment[]>;
-  abstract listAppointments(
-    filters: ListAppointmentsFilters,
-  ): Promise<Appointment[]>;
-  abstract findIdempotencyRecord<TResponse = unknown>(
-    params: FindIdempotencyRecordParams,
-  ): Promise<IdempotencyRecord<TResponse> | null>;
-  abstract saveIdempotencyRecord<TResponse = unknown>(
-    record: IdempotencyRecord<TResponse>,
-  ): Promise<void>;
+  abstract list(filters: ListAppointmentsFilters): Promise<Appointment[]>;
 }

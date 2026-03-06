@@ -43,9 +43,9 @@ describe("List Appointments Use Case", () => {
       endAt: new Date("2026-03-10T14:45:00.000Z"),
     });
 
-    await appointmentRepository.createAppointment(appointmentTwo);
-    await appointmentRepository.createAppointment(appointmentOne);
-    await appointmentRepository.createAppointment(anotherTenantAppointment);
+    await appointmentRepository.save(appointmentTwo);
+    await appointmentRepository.save(appointmentOne);
+    await appointmentRepository.save(anotherTenantAppointment);
 
     const response = await sut.execute({
       tenantId: "tenant-01",
@@ -61,11 +61,11 @@ describe("List Appointments Use Case", () => {
 
     if (response.isRight()) {
       expect(response.value.appointments).toHaveLength(2);
-      expect(response.value.appointments[0].id.toString()).toBe(
-        appointmentOne.id.toString(),
+      expect(response.value.appointments[0].id).toBe(
+        appointmentOne.id,
       );
-      expect(response.value.appointments[1].id.toString()).toBe(
-        appointmentTwo.id.toString(),
+      expect(response.value.appointments[1].id).toBe(
+        appointmentTwo.id,
       );
     }
   });
@@ -81,3 +81,4 @@ describe("List Appointments Use Case", () => {
     expect(response.value).toBeInstanceOf(AppointmentValidationError);
   });
 });
+

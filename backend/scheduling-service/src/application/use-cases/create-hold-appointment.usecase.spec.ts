@@ -2,14 +2,17 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { CreateHoldAppointmentUseCase } from "./create-hold-appointment.usecase";
 import { SchedulingConflictsError } from "src/domain/errors/scheduling-conflicts.error";
 import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
+import { InMemoryDomainEventPublisher } from "src/test/publishers/in-memory-domain-event.publisher";
 
 let sut: CreateHoldAppointmentUseCase;
 let appointmentRepository: InMemoryAppointmentRepository;
+let eventPublisher: InMemoryDomainEventPublisher;
 
 describe("Create Hold Appointment Use Case", () => {
   beforeEach(() => {
     appointmentRepository = new InMemoryAppointmentRepository();
-    sut = new CreateHoldAppointmentUseCase(appointmentRepository);
+    eventPublisher = new InMemoryDomainEventPublisher();
+    sut = new CreateHoldAppointmentUseCase(appointmentRepository, eventPublisher);
   });
 
   it("should create a HOLD appointment", async () => {
@@ -28,7 +31,7 @@ describe("Create Hold Appointment Use Case", () => {
     expect(response.isRight()).toBe(true);
 
     if (response.isRight()) {
-      expect(response.value.appointment.status.value).toBe("HOLD");
+      expect(response.value.appointment.status).toBe("HOLD");
       expect(response.value.appointment.participantProfessionalIds).toEqual([
         "prof-99",
       ]);
@@ -38,6 +41,7 @@ describe("Create Hold Appointment Use Case", () => {
     }
 
     expect(appointmentRepository.items).toHaveLength(1);
+    expect(eventPublisher.publishedEvents).toHaveLength(1);
   });
 
   it("should allow same slot in different rooms with different professionals (scenario A)", async () => {
@@ -154,12 +158,10 @@ describe("Create Hold Appointment Use Case", () => {
     expect(second.isRight()).toBe(true);
 
     if (first.isRight() && second.isRight()) {
-      expect(second.value.appointment.id.toString()).toBe(
-        first.value.appointment.id.toString(),
-      );
+      expect(second.value.appointment.id).toBe(first.value.appointment.id);
     }
 
     expect(appointmentRepository.items).toHaveLength(1);
-    expect(appointmentRepository.idempotencyRecords).toHaveLength(1);
+    expect(eventPublisher.publishedEvents).toHaveLength(1);
   });
 });

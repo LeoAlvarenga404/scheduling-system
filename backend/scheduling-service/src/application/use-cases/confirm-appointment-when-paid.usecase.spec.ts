@@ -5,14 +5,20 @@ import { HoldExpiredError } from "src/domain/errors/hold-expired.error";
 import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
 import { makeAppointment } from "src/test/factories/make-appointment";
 import { AppointmentConfirmedEvent } from "src/domain/events/appointment-confirmed.event";
+import { InMemoryDomainEventPublisher } from "src/test/publishers/in-memory-domain-event.publisher";
 
 let sut: ConfirmAppointmentWhenPaidUseCase;
 let appointmentRepository: InMemoryAppointmentRepository;
+let eventPublisher: InMemoryDomainEventPublisher;
 
 describe("Confirm Appointment When Paid Use Case", () => {
   beforeEach(() => {
     appointmentRepository = new InMemoryAppointmentRepository();
-    sut = new ConfirmAppointmentWhenPaidUseCase(appointmentRepository);
+    eventPublisher = new InMemoryDomainEventPublisher();
+    sut = new ConfirmAppointmentWhenPaidUseCase(
+      appointmentRepository,
+      eventPublisher,
+    );
   });
 
   it("should confirm payment within hold ttl (scenario D)", async () => {
@@ -21,10 +27,8 @@ describe("Confirm Appointment When Paid Use Case", () => {
       holdExpiresAt: new Date("2026-03-10T12:10:00.000Z"),
     });
 
-    await appointmentRepository.createAppointment(appointment);
+    await appointmentRepository.save(appointment);
 
-    expect(appointment.getDomainEvents()).toHaveLength(1);
-    
     const response = await sut.execute({
       tenantId: "tenant-01",
       externalRef: "checkout_abc123",
@@ -34,13 +38,14 @@ describe("Confirm Appointment When Paid Use Case", () => {
       now: new Date("2026-03-10T12:05:10.000Z"),
     });
 
-    expect(appointment.getDomainEvents()).toHaveLength(2);
-    expect(appointment.getDomainEvents()[1]).toBeInstanceOf(
+    expect(response.isRight()).toBe(true);
+    expect(appointment.status).toBe("CONFIRMED");
+    expect(appointment.paymentRef).toBe("pay_777");
+    expect(appointment.paymentConfirmationKey).toBe("webhook-pay_777");
+    expect(eventPublisher.publishedEvents).toHaveLength(1);
+    expect(eventPublisher.publishedEvents[0]).toBeInstanceOf(
       AppointmentConfirmedEvent,
     );
-    expect(response.isRight()).toBe(true);
-    expect(appointment.status.value).toBe("CONFIRMED");
-    expect(appointment.paymentRef).toBe("pay_777");
   });
 
   it("should return HOLD_EXPIRED when paid after hold expiration (scenario E)", async () => {
@@ -49,7 +54,7 @@ describe("Confirm Appointment When Paid Use Case", () => {
       holdExpiresAt: new Date("2026-03-10T12:10:00.000Z"),
     });
 
-    await appointmentRepository.createAppointment(appointment);
+    await appointmentRepository.save(appointment);
 
     const response = await sut.execute({
       tenantId: "tenant-01",
@@ -62,7 +67,8 @@ describe("Confirm Appointment When Paid Use Case", () => {
 
     expect(response.isRight()).toBe(false);
     expect(response.value).toBeInstanceOf(HoldExpiredError);
-    expect(appointment.status.value).toBe("EXPIRED");
+    expect(appointment.status).toBe("EXPIRED");
+    expect(eventPublisher.publishedEvents).toHaveLength(1);
   });
 
   it("should be idempotent for the same idempotency key", async () => {
@@ -71,7 +77,7 @@ describe("Confirm Appointment When Paid Use Case", () => {
       holdExpiresAt: new Date("2026-03-10T12:10:00.000Z"),
     });
 
-    await appointmentRepository.createAppointment(appointment);
+    await appointmentRepository.save(appointment);
 
     const first = await sut.execute({
       tenantId: "tenant-01",
@@ -96,10 +102,10 @@ describe("Confirm Appointment When Paid Use Case", () => {
 
     if (first.isRight() && second.isRight()) {
       expect(second.value.appointment.paymentRef).toBe("pay_999");
-      expect(second.value.appointment.id.toString()).toBe(
-        first.value.appointment.id.toString(),
-      );
+      expect(second.value.appointment.id).toBe(first.value.appointment.id);
     }
+
+    expect(eventPublisher.publishedEvents).toHaveLength(1);
   });
 
   it("should block confirmation with a different payment when already confirmed", async () => {
@@ -110,7 +116,7 @@ describe("Confirm Appointment When Paid Use Case", () => {
       externalRef: "checkout_other_payment",
     });
 
-    await appointmentRepository.createAppointment(appointment);
+    await appointmentRepository.save(appointment);
 
     const response = await sut.execute({
       tenantId: "tenant-01",
@@ -125,5 +131,6 @@ describe("Confirm Appointment When Paid Use Case", () => {
     expect(response.value).toBeInstanceOf(
       AlreadyConfirmedWithOtherPaymentError,
     );
+    expect(eventPublisher.publishedEvents).toHaveLength(0);
   });
 });

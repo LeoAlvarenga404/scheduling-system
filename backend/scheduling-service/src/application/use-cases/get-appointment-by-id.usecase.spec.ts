@@ -16,18 +16,18 @@ describe("Get Appointment By Id Use Case", () => {
   it("should return appointment when found by tenant and id", async () => {
     const appointment = makeAppointment();
 
-    await appointmentRepository.createAppointment(appointment);
+    await appointmentRepository.save(appointment);
 
     const response = await sut.execute({
-      appointmentId: appointment.id.toString(),
+      appointmentId: appointment.id,
       tenantId: "tenant-01",
     });
 
     expect(response.isRight()).toBe(true);
 
     if (response.isRight()) {
-      expect(response.value.appointment.id.toString()).toBe(
-        appointment.id.toString(),
+      expect(response.value.appointment.id).toBe(
+        appointment.id,
       );
     }
   });
@@ -35,10 +35,10 @@ describe("Get Appointment By Id Use Case", () => {
   it("should return not found for another tenant", async () => {
     const appointment = makeAppointment();
 
-    await appointmentRepository.createAppointment(appointment);
+    await appointmentRepository.save(appointment);
 
     const response = await sut.execute({
-      appointmentId: appointment.id.toString(),
+      appointmentId: appointment.id,
       tenantId: "tenant-02",
     });
 
@@ -46,3 +46,4 @@ describe("Get Appointment By Id Use Case", () => {
     expect(response.value).toBeInstanceOf(AppointmentNotFoundError);
   });
 });
+

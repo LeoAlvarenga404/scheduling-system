@@ -1,20 +1,24 @@
 import { Appointment } from "src/domain/entities/appointment";
-import type { AppointmentProps } from "src/domain/entities/appointment.types";
-import { AppointmentStatus, Status } from "src/domain/value-objects/appointment-status.vo";
+import type {
+  AppointmentProps,
+  AppointmentStatus,
+} from "src/domain/entities/appointment.types";
 
-interface MakeAppointmentProps extends Partial<Omit<AppointmentProps, "status">> {
-  status?: Status;
+interface MakeAppointmentProps
+  extends Partial<Omit<AppointmentProps, "status" | "startAt" | "endAt">> {
+  status?: AppointmentStatus;
+  startAt?: Date;
+  endAt?: Date;
 }
 
 export function makeAppointment(props: MakeAppointmentProps = {}): Appointment {
   const status = props.status ?? "HOLD";
-
-  return Appointment.create({
+  const appointment = Appointment.create({
     tenantId: props.tenantId ?? "tenant-01",
     roomId: props.roomId ?? "room-101",
     startAt: props.startAt ?? new Date("2026-03-10T13:00:00.000Z"),
     endAt: props.endAt ?? new Date("2026-03-10T13:45:00.000Z"),
-    status: AppointmentStatus.create(status),
+    status,
     responsibleProfessionalId: props.responsibleProfessionalId ?? "prof-10",
     participantProfessionalIds: props.participantProfessionalIds,
     customerId: props.customerId,
@@ -24,9 +28,16 @@ export function makeAppointment(props: MakeAppointmentProps = {}): Appointment {
     externalRef: props.externalRef,
     paymentRef: props.paymentRef,
     paidAt: props.paidAt,
+    creationIdempotencyKey: props.creationIdempotencyKey,
+    paymentConfirmationKey: props.paymentConfirmationKey,
     createdAt: props.createdAt,
     updatedAt: props.updatedAt,
     version: props.version,
     metadata: props.metadata,
   });
+
+  appointment.clearDomainEvents();
+
+  return appointment;
 }
+

@@ -3,14 +3,17 @@ import { ExpireHoldsUseCase } from "./expire-holds.usecase";
 import { AppointmentExpiredEvent } from "src/domain/events/appointment-expired.event";
 import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
 import { makeAppointment } from "src/test/factories/make-appointment";
+import { InMemoryDomainEventPublisher } from "src/test/publishers/in-memory-domain-event.publisher";
 
 let sut: ExpireHoldsUseCase;
 let appointmentRepository: InMemoryAppointmentRepository;
+let eventPublisher: InMemoryDomainEventPublisher;
 
 describe("Expire Holds Use Case", () => {
   beforeEach(() => {
     appointmentRepository = new InMemoryAppointmentRepository();
-    sut = new ExpireHoldsUseCase(appointmentRepository);
+    eventPublisher = new InMemoryDomainEventPublisher();
+    sut = new ExpireHoldsUseCase(appointmentRepository, eventPublisher);
   });
 
   it("should expire overdue holds", async () => {
@@ -24,8 +27,8 @@ describe("Expire Holds Use Case", () => {
       holdExpiresAt: new Date("2026-03-10T12:20:00.000Z"),
     });
 
-    await appointmentRepository.createAppointment(overdueHold);
-    await appointmentRepository.createAppointment(activeHold);
+    await appointmentRepository.save(overdueHold);
+    await appointmentRepository.save(activeHold);
 
     const response = await sut.execute({
       now: new Date("2026-03-10T12:10:00.000Z"),
@@ -35,15 +38,13 @@ describe("Expire Holds Use Case", () => {
 
     if (response.isRight()) {
       expect(response.value.expiredAppointments).toHaveLength(1);
-      expect(response.value.expiredAppointments[0].id.toString()).toBe(
-        overdueHold.id.toString(),
-      );
+      expect(response.value.expiredAppointments[0].id).toBe(overdueHold.id);
     }
 
-    expect(overdueHold.status.value).toBe("EXPIRED");
-    expect(activeHold.status.value).toBe("HOLD");
-    expect(overdueHold.getDomainEvents()).toHaveLength(2);
-    expect(overdueHold.getDomainEvents()[1]).toBeInstanceOf(
+    expect(overdueHold.status).toBe("EXPIRED");
+    expect(activeHold.status).toBe("HOLD");
+    expect(eventPublisher.publishedEvents).toHaveLength(1);
+    expect(eventPublisher.publishedEvents[0]).toBeInstanceOf(
       AppointmentExpiredEvent,
     );
   });
@@ -61,8 +62,8 @@ describe("Expire Holds Use Case", () => {
       holdExpiresAt: new Date("2026-03-10T12:00:00.000Z"),
     });
 
-    await appointmentRepository.createAppointment(tenantOneHold);
-    await appointmentRepository.createAppointment(tenantTwoHold);
+    await appointmentRepository.save(tenantOneHold);
+    await appointmentRepository.save(tenantTwoHold);
 
     const response = await sut.execute({
       tenantId: "tenant-01",
@@ -70,7 +71,8 @@ describe("Expire Holds Use Case", () => {
     });
 
     expect(response.isRight()).toBe(true);
-    expect(tenantOneHold.status.value).toBe("EXPIRED");
-    expect(tenantTwoHold.status.value).toBe("HOLD");
+    expect(tenantOneHold.status).toBe("EXPIRED");
+    expect(tenantTwoHold.status).toBe("HOLD");
+    expect(eventPublisher.publishedEvents).toHaveLength(1);
   });
 });

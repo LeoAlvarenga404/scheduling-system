@@ -4,23 +4,26 @@ import { SchedulingConflictsError } from "src/domain/errors/scheduling-conflicts
 import { AppointmentRescheduledEvent } from "src/domain/events/appointment-rescheduled.event";
 import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
 import { makeAppointment } from "src/test/factories/make-appointment";
+import { InMemoryDomainEventPublisher } from "src/test/publishers/in-memory-domain-event.publisher";
 
 let sut: RescheduleAppointmentUseCase;
 let appointmentRepository: InMemoryAppointmentRepository;
+let eventPublisher: InMemoryDomainEventPublisher;
 
 describe("Reschedule Appointment Use Case", () => {
   beforeEach(() => {
     appointmentRepository = new InMemoryAppointmentRepository();
-    sut = new RescheduleAppointmentUseCase(appointmentRepository);
+    eventPublisher = new InMemoryDomainEventPublisher();
+    sut = new RescheduleAppointmentUseCase(appointmentRepository, eventPublisher);
   });
 
   it("should reschedule and reset status to HOLD", async () => {
     const appointment = makeAppointment({ status: "CONFIRMED" });
 
-    await appointmentRepository.createAppointment(appointment);
+    await appointmentRepository.save(appointment);
 
     const response = await sut.execute({
-      appointmentId: appointment.id.toString(),
+      appointmentId: appointment.id,
       tenantId: "tenant-01",
       newRoomId: "room-202",
       newStartAt: new Date("2026-03-10T15:00:00.000Z"),
@@ -32,14 +35,14 @@ describe("Reschedule Appointment Use Case", () => {
     });
 
     expect(response.isRight()).toBe(true);
-    expect(appointment.status.value).toBe("HOLD");
-    expect(appointment.roomId.value).toBe("room-202");
+    expect(appointment.status).toBe("HOLD");
+    expect(appointment.roomId).toBe("room-202");
     expect(appointment.participantProfessionalIds).toEqual(["prof-13"]);
     expect(appointment.holdExpiresAt).toEqual(
       new Date("2026-03-10T14:05:00.000Z"),
     );
-    expect(appointment.getDomainEvents()).toHaveLength(2);
-    expect(appointment.getDomainEvents()[1]).toBeInstanceOf(
+    expect(eventPublisher.publishedEvents).toHaveLength(1);
+    expect(eventPublisher.publishedEvents[0]).toBeInstanceOf(
       AppointmentRescheduledEvent,
     );
   });
@@ -58,11 +61,11 @@ describe("Reschedule Appointment Use Case", () => {
       status: "CONFIRMED",
     });
 
-    await appointmentRepository.createAppointment(existingAppointment);
-    await appointmentRepository.createAppointment(appointmentToReschedule);
+    await appointmentRepository.save(existingAppointment);
+    await appointmentRepository.save(appointmentToReschedule);
 
     const response = await sut.execute({
-      appointmentId: appointmentToReschedule.id.toString(),
+      appointmentId: appointmentToReschedule.id,
       tenantId: "tenant-01",
       newRoomId: "room-303",
       newStartAt: new Date("2026-03-10T15:00:00.000Z"),
@@ -77,5 +80,7 @@ describe("Reschedule Appointment Use Case", () => {
     if (response.isLeft() && response.value instanceof SchedulingConflictsError) {
       expect(response.value.conflictType).toBe("CONFLICT_PROFESSIONAL");
     }
+
+    expect(eventPublisher.publishedEvents).toHaveLength(0);
   });
 });

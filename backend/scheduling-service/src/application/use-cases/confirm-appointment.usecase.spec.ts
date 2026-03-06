@@ -6,32 +6,35 @@ import { AppointmentConfirmedEvent } from "src/domain/events/appointment-confirm
 import { AppointmentExpiredEvent } from "src/domain/events/appointment-expired.event";
 import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
 import { makeAppointment } from "src/test/factories/make-appointment";
+import { InMemoryDomainEventPublisher } from "src/test/publishers/in-memory-domain-event.publisher";
 
 let sut: ConfirmAppointmentUseCase;
 let appointmentRepository: InMemoryAppointmentRepository;
+let eventPublisher: InMemoryDomainEventPublisher;
 
 describe("Confirm Appointment Use Case", () => {
   beforeEach(() => {
     appointmentRepository = new InMemoryAppointmentRepository();
-    sut = new ConfirmAppointmentUseCase(appointmentRepository);
+    eventPublisher = new InMemoryDomainEventPublisher();
+    sut = new ConfirmAppointmentUseCase(appointmentRepository, eventPublisher);
   });
 
   it("should confirm an appointment in HOLD", async () => {
     const appointment = makeAppointment();
 
-    await appointmentRepository.createAppointment(appointment);
+    await appointmentRepository.save(appointment);
 
     const response = await sut.execute({
-      appointmentId: appointment.id.toString(),
+      appointmentId: appointment.id,
       tenantId: "tenant-01",
       now: new Date("2026-03-10T12:05:00.000Z"),
     });
 
     expect(response.isRight()).toBe(true);
-    expect(appointment.status.value).toBe("CONFIRMED");
+    expect(appointment.status).toBe("CONFIRMED");
     expect(appointment.holdExpiresAt).toBeUndefined();
-    expect(appointment.getDomainEvents()).toHaveLength(2);
-    expect(appointment.getDomainEvents()[1]).toBeInstanceOf(
+    expect(eventPublisher.publishedEvents).toHaveLength(1);
+    expect(eventPublisher.publishedEvents[0]).toBeInstanceOf(
       AppointmentConfirmedEvent,
     );
   });
@@ -41,19 +44,19 @@ describe("Confirm Appointment Use Case", () => {
       holdExpiresAt: new Date("2026-03-10T12:05:00.000Z"),
     });
 
-    await appointmentRepository.createAppointment(appointment);
+    await appointmentRepository.save(appointment);
 
     const response = await sut.execute({
-      appointmentId: appointment.id.toString(),
+      appointmentId: appointment.id,
       tenantId: "tenant-01",
       now: new Date("2026-03-10T12:06:00.000Z"),
     });
 
     expect(response.isRight()).toBe(false);
     expect(response.value).toBeInstanceOf(HoldExpiredError);
-    expect(appointment.status.value).toBe("EXPIRED");
-    expect(appointment.getDomainEvents()).toHaveLength(2);
-    expect(appointment.getDomainEvents()[1]).toBeInstanceOf(
+    expect(appointment.status).toBe("EXPIRED");
+    expect(eventPublisher.publishedEvents).toHaveLength(1);
+    expect(eventPublisher.publishedEvents[0]).toBeInstanceOf(
       AppointmentExpiredEvent,
     );
   });
@@ -61,14 +64,15 @@ describe("Confirm Appointment Use Case", () => {
   it("should return error when appointment is not in HOLD", async () => {
     const appointment = makeAppointment({ status: "CANCELLED" });
 
-    await appointmentRepository.createAppointment(appointment);
+    await appointmentRepository.save(appointment);
 
     const response = await sut.execute({
-      appointmentId: appointment.id.toString(),
+      appointmentId: appointment.id,
       tenantId: "tenant-01",
     });
 
     expect(response.isRight()).toBe(false);
     expect(response.value).toBeInstanceOf(InvalidAppointmentStateError);
+    expect(eventPublisher.publishedEvents).toHaveLength(0);
   });
 });

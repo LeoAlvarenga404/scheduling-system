@@ -6,6 +6,9 @@ import type { Either } from "src/domain/core/entities/either";
 import type { Appointment } from "src/domain/entities/appointment";
 import { AppointmentNotFoundError } from "src/domain/errors/appointment-not-found.error";
 import { InvalidAppointmentStateError } from "src/domain/errors/invalid-appointment-state.error";
+import { DomainEventPublisher } from "src/application/events/domain-event-publisher";
+import { NoopDomainEventPublisher } from "src/application/events/noop-domain-event.publisher";
+import { publishAppointmentEvents } from "src/application/events/publish-appointment-events";
 
 export interface CancelAppointmentRequest {
   appointmentId: string;
@@ -21,11 +24,14 @@ export type CancelAppointmentOutput = Either<
   }
 >;
 
-export class CancelAppointmentUseCase implements UseCase<
-  CancelAppointmentRequest,
-  CancelAppointmentOutput
-> {
-  constructor(private appointmentRepository: AppointmentRepository) {}
+export class CancelAppointmentUseCase
+  implements UseCase<CancelAppointmentRequest, CancelAppointmentOutput>
+{
+  constructor(
+    private appointmentRepository: AppointmentRepository,
+    private readonly eventPublisher: DomainEventPublisher =
+      new NoopDomainEventPublisher(),
+  ) {}
 
   async execute({
     appointmentId,
@@ -33,7 +39,7 @@ export class CancelAppointmentUseCase implements UseCase<
     reason,
     cancelledBy,
   }: CancelAppointmentRequest): Promise<CancelAppointmentOutput> {
-    const appointment = await this.appointmentRepository.getAppointmentById(
+    const appointment = await this.appointmentRepository.findById(
       appointmentId,
       tenantId,
     );
@@ -42,18 +48,11 @@ export class CancelAppointmentUseCase implements UseCase<
       return left(new AppointmentNotFoundError());
     }
 
-    if (appointment.status.value === "CANCELLED") {
+    if (appointment.status === "CANCELLED" || appointment.status === "EXPIRED") {
       return right({ appointment });
     }
 
-    if (appointment.status.value === "EXPIRED") {
-      return right({ appointment });
-    }
-
-    if (
-      appointment.status.value !== "HOLD" &&
-      appointment.status.value !== "CONFIRMED"
-    ) {
+    if (appointment.status !== "HOLD" && appointment.status !== "CONFIRMED") {
       return left(
         new InvalidAppointmentStateError(
           "Only HOLD or CONFIRMED appointments can be cancelled.",
@@ -62,8 +61,10 @@ export class CancelAppointmentUseCase implements UseCase<
     }
 
     appointment.cancel({ reason, cancelledBy });
-    await this.appointmentRepository.updateAppointment(appointment);
+    await this.appointmentRepository.save(appointment);
+    await publishAppointmentEvents(appointment, this.eventPublisher);
 
     return right({ appointment });
   }
 }
+

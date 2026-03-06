@@ -5,7 +5,9 @@ import { AppointmentValidationError } from "src/domain/errors/appointment-valida
 import { IdempotencyKeyRequiredError } from "src/domain/errors/idempotency-key-required.error";
 import { SchedulingConflictsError } from "src/domain/errors/scheduling-conflicts.error";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
-import { AppointmentStatus } from "src/domain/value-objects/appointment-status.vo";
+import { DomainEventPublisher } from "src/application/events/domain-event-publisher";
+import { NoopDomainEventPublisher } from "src/application/events/noop-domain-event.publisher";
+import { publishAppointmentEvents } from "src/application/events/publish-appointment-events";
 
 export interface CreateHoldAppointmentRequest {
   tenantId: string;
@@ -22,21 +24,20 @@ export interface CreateHoldAppointmentRequest {
 }
 
 export type CreateHoldAppointmentOutput = Either<
-  | AppointmentValidationError
-  | IdempotencyKeyRequiredError
-  | SchedulingConflictsError,
+  AppointmentValidationError | IdempotencyKeyRequiredError | SchedulingConflictsError,
   {
     appointment: Appointment;
   }
 >;
 
-const CREATE_HOLD_OPERATION = "CREATE_HOLD_APPOINTMENT";
-
-export class CreateHoldAppointmentUseCase implements UseCase<
-  CreateHoldAppointmentRequest,
-  CreateHoldAppointmentOutput
-> {
-  constructor(private appointmentRepository: AppointmentRepository) {}
+export class CreateHoldAppointmentUseCase
+  implements UseCase<CreateHoldAppointmentRequest, CreateHoldAppointmentOutput>
+{
+  constructor(
+    private appointmentRepository: AppointmentRepository,
+    private readonly eventPublisher: DomainEventPublisher =
+      new NoopDomainEventPublisher(),
+  ) {}
 
   async execute({
     tenantId,
@@ -55,17 +56,14 @@ export class CreateHoldAppointmentUseCase implements UseCase<
       return left(new IdempotencyKeyRequiredError());
     }
 
-    const idempotencyRecord =
-      await this.appointmentRepository.findIdempotencyRecord<{
-        appointment: Appointment;
-      }>({
+    const existingAppointment =
+      await this.appointmentRepository.findByCreationIdempotencyKey(
         tenantId,
-        key: idempotencyKey,
-        operation: CREATE_HOLD_OPERATION,
-      });
+        idempotencyKey,
+      );
 
-    if (idempotencyRecord) {
-      return right(idempotencyRecord.responseSnapshot);
+    if (existingAppointment) {
+      return right({ appointment: existingAppointment });
     }
 
     if (!Number.isInteger(holdTtlSeconds) || holdTtlSeconds <= 0) {
@@ -80,11 +78,6 @@ export class CreateHoldAppointmentUseCase implements UseCase<
     const holdExpiresAt = new Date(
       referenceDate.getTime() + holdTtlSeconds * 1000,
     );
-    const normalizedParticipants =
-      Appointment.normalizeParticipantProfessionalIds(
-        participantProfessionalIds,
-        responsibleProfessionalId,
-      );
 
     let appointment: Appointment;
 
@@ -94,12 +87,13 @@ export class CreateHoldAppointmentUseCase implements UseCase<
         roomId,
         startAt,
         endAt,
-        status: AppointmentStatus.create("HOLD"),
+        status: "HOLD",
         responsibleProfessionalId,
-        participantProfessionalIds: normalizedParticipants,
+        participantProfessionalIds,
         customerId,
         externalRef,
         holdExpiresAt,
+        creationIdempotencyKey: idempotencyKey,
       });
     } catch (error) {
       return left(
@@ -109,25 +103,17 @@ export class CreateHoldAppointmentUseCase implements UseCase<
       );
     }
 
-    const conflictType =
-      await this.appointmentRepository.createAppointmentIfNoConflicts(
-        appointment,
-      );
+    const conflictType = await this.appointmentRepository.createIfNoConflicts(
+      appointment,
+    );
 
     if (conflictType) {
       return left(new SchedulingConflictsError(conflictType));
     }
 
-    const responseSnapshot = { appointment };
+    await publishAppointmentEvents(appointment, this.eventPublisher);
 
-    await this.appointmentRepository.saveIdempotencyRecord({
-      tenantId,
-      key: idempotencyKey,
-      operation: CREATE_HOLD_OPERATION,
-      responseSnapshot,
-      createdAt: referenceDate,
-    });
-
-    return right(responseSnapshot);
+    return right({ appointment });
   }
 }
+

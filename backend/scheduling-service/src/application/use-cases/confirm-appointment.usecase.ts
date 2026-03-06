@@ -5,6 +5,9 @@ import { AppointmentNotFoundError } from "src/domain/errors/appointment-not-foun
 import { HoldExpiredError } from "src/domain/errors/hold-expired.error";
 import { InvalidAppointmentStateError } from "src/domain/errors/invalid-appointment-state.error";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
+import { DomainEventPublisher } from "src/application/events/domain-event-publisher";
+import { NoopDomainEventPublisher } from "src/application/events/noop-domain-event.publisher";
+import { publishAppointmentEvents } from "src/application/events/publish-appointment-events";
 
 export interface ConfirmAppointmentRequest {
   appointmentId: string;
@@ -19,18 +22,21 @@ export type ConfirmAppointmentOutput = Either<
   }
 >;
 
-export class ConfirmAppointmentUseCase implements UseCase<
-  ConfirmAppointmentRequest,
-  ConfirmAppointmentOutput
-> {
-  constructor(private appointmentRepository: AppointmentRepository) {}
+export class ConfirmAppointmentUseCase
+  implements UseCase<ConfirmAppointmentRequest, ConfirmAppointmentOutput>
+{
+  constructor(
+    private appointmentRepository: AppointmentRepository,
+    private readonly eventPublisher: DomainEventPublisher =
+      new NoopDomainEventPublisher(),
+  ) {}
 
   async execute({
     appointmentId,
     tenantId,
     now,
   }: ConfirmAppointmentRequest): Promise<ConfirmAppointmentOutput> {
-    const appointment = await this.appointmentRepository.getAppointmentById(
+    const appointment = await this.appointmentRepository.findById(
       appointmentId,
       tenantId,
     );
@@ -39,11 +45,11 @@ export class ConfirmAppointmentUseCase implements UseCase<
       return left(new AppointmentNotFoundError());
     }
 
-    if (appointment.status.value === "CONFIRMED") {
+    if (appointment.status === "CONFIRMED") {
       return right({ appointment });
     }
 
-    if (appointment.status.value !== "HOLD") {
+    if (appointment.status !== "HOLD") {
       return left(
         new InvalidAppointmentStateError(
           "Only appointments in HOLD can be confirmed.",
@@ -55,14 +61,17 @@ export class ConfirmAppointmentUseCase implements UseCase<
 
     if (appointment.isHoldExpired(referenceDate)) {
       appointment.expireHold(referenceDate);
-      await this.appointmentRepository.updateAppointment(appointment);
+      await this.appointmentRepository.save(appointment);
+      await publishAppointmentEvents(appointment, this.eventPublisher);
 
       return left(new HoldExpiredError());
     }
 
     appointment.confirm(referenceDate);
-    await this.appointmentRepository.updateAppointment(appointment);
+    await this.appointmentRepository.save(appointment);
+    await publishAppointmentEvents(appointment, this.eventPublisher);
 
     return right({ appointment });
   }
 }
+

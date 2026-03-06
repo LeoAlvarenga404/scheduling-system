@@ -4,6 +4,9 @@ import { Appointment } from "src/domain/entities/appointment";
 import { AppointmentNotFoundError } from "src/domain/errors/appointment-not-found.error";
 import { InvalidAppointmentStateError } from "src/domain/errors/invalid-appointment-state.error";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
+import { DomainEventPublisher } from "src/application/events/domain-event-publisher";
+import { NoopDomainEventPublisher } from "src/application/events/noop-domain-event.publisher";
+import { publishAppointmentEvents } from "src/application/events/publish-appointment-events";
 
 export interface CompleteAppointmentRequest {
   appointmentId: string;
@@ -17,17 +20,20 @@ export type CompleteAppointmentOutput = Either<
   }
 >;
 
-export class CompleteAppointmentUseCase implements UseCase<
-  CompleteAppointmentRequest,
-  CompleteAppointmentOutput
-> {
-  constructor(private appointmentRepository: AppointmentRepository) {}
+export class CompleteAppointmentUseCase
+  implements UseCase<CompleteAppointmentRequest, CompleteAppointmentOutput>
+{
+  constructor(
+    private appointmentRepository: AppointmentRepository,
+    private readonly eventPublisher: DomainEventPublisher =
+      new NoopDomainEventPublisher(),
+  ) {}
 
   async execute({
     appointmentId,
     tenantId,
   }: CompleteAppointmentRequest): Promise<CompleteAppointmentOutput> {
-    const appointment = await this.appointmentRepository.getAppointmentById(
+    const appointment = await this.appointmentRepository.findById(
       appointmentId,
       tenantId,
     );
@@ -36,11 +42,11 @@ export class CompleteAppointmentUseCase implements UseCase<
       return left(new AppointmentNotFoundError());
     }
 
-    if (appointment.status.value === "COMPLETED") {
+    if (appointment.status === "COMPLETED") {
       return right({ appointment });
     }
 
-    if (appointment.status.value !== "CONFIRMED") {
+    if (appointment.status !== "CONFIRMED") {
       return left(
         new InvalidAppointmentStateError(
           "Only CONFIRMED appointments can be completed.",
@@ -49,8 +55,10 @@ export class CompleteAppointmentUseCase implements UseCase<
     }
 
     appointment.complete();
-    await this.appointmentRepository.updateAppointment(appointment);
+    await this.appointmentRepository.save(appointment);
+    await publishAppointmentEvents(appointment, this.eventPublisher);
 
     return right({ appointment });
   }
 }
+

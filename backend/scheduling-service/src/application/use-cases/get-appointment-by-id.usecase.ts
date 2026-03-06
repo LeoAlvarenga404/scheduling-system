@@ -16,17 +16,16 @@ export type GetAppointmentByIdOutput = Either<
   }
 >;
 
-export class GetAppointmentByIdUseCase implements UseCase<
-  GetAppointmentByIdRequest,
-  GetAppointmentByIdOutput
-> {
+export class GetAppointmentByIdUseCase
+  implements UseCase<GetAppointmentByIdRequest, GetAppointmentByIdOutput>
+{
   constructor(private appointmentRepository: AppointmentRepository) {}
 
   async execute({
     appointmentId,
     tenantId,
   }: GetAppointmentByIdRequest): Promise<GetAppointmentByIdOutput> {
-    const appointment = await this.appointmentRepository.getAppointmentById(
+    const appointment = await this.appointmentRepository.findById(
       appointmentId,
       tenantId,
     );
@@ -38,3 +37,4 @@ export class GetAppointmentByIdUseCase implements UseCase<
     return right({ appointment });
   }
 }
+

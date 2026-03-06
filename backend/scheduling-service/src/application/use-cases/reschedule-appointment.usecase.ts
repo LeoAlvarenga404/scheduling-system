@@ -6,6 +6,9 @@ import { AppointmentValidationError } from "src/domain/errors/appointment-valida
 import { InvalidAppointmentStateError } from "src/domain/errors/invalid-appointment-state.error";
 import { SchedulingConflictsError } from "src/domain/errors/scheduling-conflicts.error";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
+import { DomainEventPublisher } from "src/application/events/domain-event-publisher";
+import { NoopDomainEventPublisher } from "src/application/events/noop-domain-event.publisher";
+import { publishAppointmentEvents } from "src/application/events/publish-appointment-events";
 
 export interface RescheduleAppointmentRequest {
   appointmentId: string;
@@ -31,11 +34,14 @@ export type RescheduleAppointmentOutput = Either<
 
 const RESCHEDULE_DEFAULT_HOLD_TTL_SECONDS = 600;
 
-export class RescheduleAppointmentUseCase implements UseCase<
-  RescheduleAppointmentRequest,
-  RescheduleAppointmentOutput
-> {
-  constructor(private appointmentRepository: AppointmentRepository) {}
+export class RescheduleAppointmentUseCase
+  implements UseCase<RescheduleAppointmentRequest, RescheduleAppointmentOutput>
+{
+  constructor(
+    private appointmentRepository: AppointmentRepository,
+    private readonly eventPublisher: DomainEventPublisher =
+      new NoopDomainEventPublisher(),
+  ) {}
 
   async execute({
     appointmentId,
@@ -48,7 +54,7 @@ export class RescheduleAppointmentUseCase implements UseCase<
     newHoldTtlSeconds,
     now,
   }: RescheduleAppointmentRequest): Promise<RescheduleAppointmentOutput> {
-    const appointment = await this.appointmentRepository.getAppointmentById(
+    const appointment = await this.appointmentRepository.findById(
       appointmentId,
       tenantId,
     );
@@ -57,10 +63,7 @@ export class RescheduleAppointmentUseCase implements UseCase<
       return left(new AppointmentNotFoundError());
     }
 
-    if (
-      appointment.status.value !== "HOLD" &&
-      appointment.status.value !== "CONFIRMED"
-    ) {
+    if (appointment.status !== "HOLD" && appointment.status !== "CONFIRMED") {
       return left(
         new InvalidAppointmentStateError(
           "Only HOLD or CONFIRMED appointments can be rescheduled.",
@@ -77,15 +80,13 @@ export class RescheduleAppointmentUseCase implements UseCase<
     }
 
     const responsibleProfessionalId =
-      newResponsibleProfessionalId ??
-      appointment.responsibleProfessionalId.value;
-    const normalizedParticipants =
-      Appointment.normalizeParticipantProfessionalIds(
-        newParticipantProfessionalIds ?? appointment.participantProfessionalIds,
-        responsibleProfessionalId,
-      );
+      newResponsibleProfessionalId ?? appointment.responsibleProfessionalId;
+    const normalizedParticipants = Appointment.normalizeParticipantProfessionalIds(
+      newParticipantProfessionalIds ?? appointment.participantProfessionalIds,
+      responsibleProfessionalId,
+    );
 
-    const conflictResult = await this.appointmentRepository.findConflicts({
+    const conflictResult = await this.appointmentRepository.findConflictingAppointments({
       tenantId,
       roomId: newRoomId,
       startAt: newStartAt,
@@ -94,7 +95,7 @@ export class RescheduleAppointmentUseCase implements UseCase<
         responsibleProfessionalId,
         ...(normalizedParticipants ?? []),
       ],
-      excludeAppointmentId: appointment.id.toString(),
+      excludeAppointmentId: appointment.id,
     });
 
     if (conflictResult.roomConflict) {
@@ -130,8 +131,10 @@ export class RescheduleAppointmentUseCase implements UseCase<
       );
     }
 
-    await this.appointmentRepository.updateAppointment(appointment);
+    await this.appointmentRepository.save(appointment);
+    await publishAppointmentEvents(appointment, this.eventPublisher);
 
     return right({ appointment });
   }
 }
+

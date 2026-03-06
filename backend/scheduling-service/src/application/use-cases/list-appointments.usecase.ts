@@ -14,10 +14,9 @@ export type ListAppointmentsOutput = Either<
   }
 >;
 
-export class ListAppointmentsUseCase implements UseCase<
-  ListAppointmentsRequest,
-  ListAppointmentsOutput
-> {
+export class ListAppointmentsUseCase
+  implements UseCase<ListAppointmentsRequest, ListAppointmentsOutput>
+{
   constructor(private appointmentRepository: AppointmentRepository) {}
 
   async execute({
@@ -39,7 +38,7 @@ export class ListAppointmentsUseCase implements UseCase<
       );
     }
 
-    const appointments = await this.appointmentRepository.listAppointments({
+    const appointments = await this.appointmentRepository.list({
       tenantId,
       dateFrom,
       dateTo,
@@ -52,3 +51,4 @@ export class ListAppointmentsUseCase implements UseCase<
     return right({ appointments });
   }
 }
+

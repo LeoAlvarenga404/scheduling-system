@@ -28,4 +28,4 @@ COPY --from=build /app/dist ./dist
 USER bun
 EXPOSE 3000
 
-CMD ["bun", "dist/src/main.js"]
+CMD ["bun", "dist/main.js"]

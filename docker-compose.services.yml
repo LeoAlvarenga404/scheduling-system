@@ -1,0 +1,23 @@
+services:
+  scheduling-service:
+    build:
+      context: ./backend/scheduling-service
+      dockerfile: Dockerfile
+    container_name: scheduling-service-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://scheduling:scheduling@postgres:5432/scheduling_service?schema=public
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      RABBITMQ_EXCHANGE: scheduling.events
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+    restart: unless-stopped

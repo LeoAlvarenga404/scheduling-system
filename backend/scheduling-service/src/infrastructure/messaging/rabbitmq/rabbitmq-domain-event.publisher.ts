@@ -11,9 +11,9 @@ export class RabbitMqDomainEventPublisher
   private channel: Channel | null = null;
 
   private readonly rabbitMqUrl =
-    process.env.RABBITMQ_URL ?? "amqp://localhost:5672";
+    process.env.RABBITMQ_URL
   private readonly exchange =
-    process.env.RABBITMQ_EXCHANGE ?? "scheduling.domain.events";
+    process.env.RABBITMQ_EXCHANGE
 
   async onModuleDestroy(): Promise<void> {
     await this.channel?.close();

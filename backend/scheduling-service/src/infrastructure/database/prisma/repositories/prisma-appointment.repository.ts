@@ -115,36 +115,6 @@ export class PrismaAppointmentRepository implements AppointmentRepository {
     return appointment ? PrismaAppointmentMapper.toDomain(appointment) : null;
   }
 
-  async findByCreationIdempotencyKey(
-    tenantId: string,
-    idempotencyKey: string,
-  ): Promise<Appointment | null> {
-    const appointment = await this.prisma.appointment.findFirst({
-      where: {
-        tenantId,
-        creationIdempotencyKey: idempotencyKey,
-      },
-      include: prismaAppointmentInclude,
-    });
-
-    return appointment ? PrismaAppointmentMapper.toDomain(appointment) : null;
-  }
-
-  async findByPaymentConfirmationKey(
-    tenantId: string,
-    idempotencyKey: string,
-  ): Promise<Appointment | null> {
-    const appointment = await this.prisma.appointment.findFirst({
-      where: {
-        tenantId,
-        paymentConfirmationKey: idempotencyKey,
-      },
-      include: prismaAppointmentInclude,
-    });
-
-    return appointment ? PrismaAppointmentMapper.toDomain(appointment) : null;
-  }
-
   async findConflictingAppointments(
     params: AppointmentConflictCheckParams,
   ): Promise<AppointmentConflictResult> {

@@ -32,10 +32,6 @@ function makePrismaMock(): PrismaMock {
 
 function toPersistenceAppointment(
   appointment: ReturnType<typeof makeAppointment>,
-  overrides?: {
-    creationIdempotencyKey?: string | null;
-    paymentConfirmationKey?: string | null;
-  },
 ) {
   return {
     id: appointment.id,
@@ -50,8 +46,6 @@ function toPersistenceAppointment(
     externalRef: appointment.externalRef ?? null,
     paymentRef: appointment.paymentRef ?? null,
     paidAt: appointment.paidAt ?? null,
-    creationIdempotencyKey: overrides?.creationIdempotencyKey ?? null,
-    paymentConfirmationKey: overrides?.paymentConfirmationKey ?? null,
     metadata: appointment.metadata ?? null,
     version: appointment.version,
     createdAt: appointment.createdAt,
@@ -77,45 +71,31 @@ describe("PrismaAppointmentRepository", () => {
     );
   });
 
-  it("should lookup appointments by creation idempotency key", async () => {
+  it("should lookup appointments by id", async () => {
     const appointment = makeAppointment();
 
-    prismaMock.appointment.findFirst.mockResolvedValue(
-      toPersistenceAppointment(appointment, {
-        creationIdempotencyKey: "create-123",
-      }),
-    );
+    prismaMock.appointment.findFirst.mockResolvedValue(toPersistenceAppointment(appointment));
 
-    const found = await repository.findByCreationIdempotencyKey(
-      appointment.tenantId,
-      "create-123",
-    );
+    const found = await repository.findById(appointment.id, appointment.tenantId);
 
     expect(found).not.toBeNull();
     expect(found?.id).toBe(appointment.id);
     expect(prismaMock.appointment.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
+          id: appointment.id,
           tenantId: appointment.tenantId,
-          creationIdempotencyKey: "create-123",
         },
       }),
     );
   });
 
-  it("should lookup appointments by payment confirmation key", async () => {
-    const appointment = makeAppointment({ status: "CONFIRMED" });
+  it("should lookup appointments by external reference", async () => {
+    const appointment = makeAppointment({ externalRef: "ext-123" });
 
-    prismaMock.appointment.findFirst.mockResolvedValue(
-      toPersistenceAppointment(appointment, {
-        paymentConfirmationKey: "payment-123",
-      }),
-    );
+    prismaMock.appointment.findFirst.mockResolvedValue(toPersistenceAppointment(appointment));
 
-    const found = await repository.findByPaymentConfirmationKey(
-      appointment.tenantId,
-      "payment-123",
-    );
+    const found = await repository.findByExternalRef("ext-123", appointment.tenantId);
 
     expect(found).not.toBeNull();
     expect(found?.id).toBe(appointment.id);
@@ -123,7 +103,7 @@ describe("PrismaAppointmentRepository", () => {
       expect.objectContaining({
         where: {
           tenantId: appointment.tenantId,
-          paymentConfirmationKey: "payment-123",
+          externalRef: "ext-123",
         },
       }),
     );

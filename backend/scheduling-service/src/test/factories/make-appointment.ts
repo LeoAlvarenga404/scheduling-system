@@ -28,8 +28,6 @@ export function makeAppointment(props: MakeAppointmentProps = {}): Appointment {
     externalRef: props.externalRef,
     paymentRef: props.paymentRef,
     paidAt: props.paidAt,
-    creationIdempotencyKey: props.creationIdempotencyKey,
-    paymentConfirmationKey: props.paymentConfirmationKey,
     createdAt: props.createdAt,
     updatedAt: props.updatedAt,
     version: props.version,

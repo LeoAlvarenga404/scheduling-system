@@ -23,8 +23,6 @@ export interface AppointmentProps {
   externalRef?: string;
   paymentRef?: string;
   paidAt?: Date;
-  creationIdempotencyKey?: string;
-  paymentConfirmationKey?: string;
   createdAt?: Date;
   updatedAt?: Date;
   version?: number;

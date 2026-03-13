@@ -18,8 +18,6 @@ describe("PrismaAppointmentMapper", () => {
       externalRef: "ext-01",
       paymentRef: null,
       paidAt: null,
-      creationIdempotencyKey: null,
-      paymentConfirmationKey: null,
       metadata: {
         source: "spec",
       },

@@ -32,8 +32,6 @@ export class PrismaAppointmentMapper {
       externalRef: appointment.externalRef ?? undefined,
       paymentRef: appointment.paymentRef ?? undefined,
       paidAt: appointment.paidAt ?? undefined,
-      creationIdempotencyKey: appointment.creationIdempotencyKey ?? undefined,
-      paymentConfirmationKey: appointment.paymentConfirmationKey ?? undefined,
       createdAt: appointment.createdAt,
       updatedAt: appointment.updatedAt,
       version: appointment.version,
@@ -57,8 +55,6 @@ export class PrismaAppointmentMapper {
       externalRef: appointment.externalRef ?? null,
       paymentRef: appointment.paymentRef ?? null,
       paidAt: appointment.paidAt ?? null,
-      creationIdempotencyKey: appointment.creationIdempotencyKey ?? null,
-      paymentConfirmationKey: appointment.paymentConfirmationKey ?? null,
       metadata: PrismaAppointmentMapper.toPersistenceMetadata(
         appointment.metadata,
       ),
@@ -82,8 +78,6 @@ export class PrismaAppointmentMapper {
       externalRef: appointment.externalRef ?? null,
       paymentRef: appointment.paymentRef ?? null,
       paidAt: appointment.paidAt ?? null,
-      creationIdempotencyKey: appointment.creationIdempotencyKey ?? null,
-      paymentConfirmationKey: appointment.paymentConfirmationKey ?? null,
       metadata: PrismaAppointmentMapper.toPersistenceMetadata(
         appointment.metadata,
       ),

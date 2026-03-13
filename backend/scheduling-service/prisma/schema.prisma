@@ -27,8 +27,6 @@ model Appointment {
   externalRef               String?
   paymentRef                String?
   paidAt                    DateTime?
-  creationIdempotencyKey    String?
-  paymentConfirmationKey    String?
   metadata                  Json?
   version                   Int                     @default(0)
   createdAt                 DateTime                @default(now())
@@ -36,8 +34,6 @@ model Appointment {
   participants              AppointmentParticipant[]
 
   @@unique([tenantId, externalRef])
-  @@unique([tenantId, creationIdempotencyKey])
-  @@unique([tenantId, paymentConfirmationKey])
   @@index([tenantId, startAt])
   @@index([tenantId, roomId, startAt, endAt])
   @@index([tenantId, responsibleProfessionalId, startAt, endAt])

@@ -2,7 +2,6 @@ import { Either, left, right } from "src/domain/core/entities/either";
 import { UseCase } from "src/domain/core/entities/use-case";
 import { Appointment } from "src/domain/entities/appointment";
 import { AppointmentValidationError } from "src/domain/errors/appointment-validation.error";
-import { IdempotencyKeyRequiredError } from "src/domain/errors/idempotency-key-required.error";
 import { SchedulingConflictsError } from "src/domain/errors/scheduling-conflicts.error";
 import { AppointmentRepository } from "src/domain/repositories/appointment.repository";
 import { DomainEventPublisher } from "src/application/events/domain-event-publisher";
@@ -19,12 +18,11 @@ export interface CreateHoldAppointmentRequest {
   customerId?: string;
   externalRef?: string;
   holdTtlSeconds: number;
-  idempotencyKey: string;
   now?: Date;
 }
 
 export type CreateHoldAppointmentOutput = Either<
-  AppointmentValidationError | IdempotencyKeyRequiredError | SchedulingConflictsError,
+  AppointmentValidationError | SchedulingConflictsError,
   {
     appointment: Appointment;
   }
@@ -49,23 +47,8 @@ export class CreateHoldAppointmentUseCase
     customerId,
     externalRef,
     holdTtlSeconds,
-    idempotencyKey,
     now,
   }: CreateHoldAppointmentRequest): Promise<CreateHoldAppointmentOutput> {
-    if (!idempotencyKey) {
-      return left(new IdempotencyKeyRequiredError());
-    }
-
-    const existingAppointment =
-      await this.appointmentRepository.findByCreationIdempotencyKey(
-        tenantId,
-        idempotencyKey,
-      );
-
-    if (existingAppointment) {
-      return right({ appointment: existingAppointment });
-    }
-
     if (!Number.isInteger(holdTtlSeconds) || holdTtlSeconds <= 0) {
       return left(
         new AppointmentValidationError(
@@ -93,7 +76,6 @@ export class CreateHoldAppointmentUseCase
         customerId,
         externalRef,
         holdExpiresAt,
-        creationIdempotencyKey: idempotencyKey,
       });
     } catch (error) {
       return left(

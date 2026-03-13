@@ -34,14 +34,12 @@ describe("Confirm Appointment When Paid Use Case", () => {
       externalRef: "checkout_abc123",
       paymentRef: "pay_777",
       paidAt: new Date("2026-03-10T12:05:10.000Z"),
-      idempotencyKey: "webhook-pay_777",
       now: new Date("2026-03-10T12:05:10.000Z"),
     });
 
     expect(response.isRight()).toBe(true);
     expect(appointment.status).toBe("CONFIRMED");
     expect(appointment.paymentRef).toBe("pay_777");
-    expect(appointment.paymentConfirmationKey).toBe("webhook-pay_777");
     expect(eventPublisher.publishedEvents).toHaveLength(1);
     expect(eventPublisher.publishedEvents[0]).toBeInstanceOf(
       AppointmentConfirmedEvent,
@@ -61,7 +59,6 @@ describe("Confirm Appointment When Paid Use Case", () => {
       externalRef: "checkout_expired",
       paymentRef: "pay_888",
       paidAt: new Date("2026-03-10T12:12:00.000Z"),
-      idempotencyKey: "webhook-pay_888",
       now: new Date("2026-03-10T12:12:00.000Z"),
     });
 
@@ -71,7 +68,7 @@ describe("Confirm Appointment When Paid Use Case", () => {
     expect(eventPublisher.publishedEvents).toHaveLength(1);
   });
 
-  it("should be idempotent for the same idempotency key", async () => {
+  it("should return the existing appointment when it is already confirmed with the same payment", async () => {
     const appointment = makeAppointment({
       externalRef: "checkout_same_key",
       holdExpiresAt: new Date("2026-03-10T12:10:00.000Z"),
@@ -84,16 +81,14 @@ describe("Confirm Appointment When Paid Use Case", () => {
       externalRef: "checkout_same_key",
       paymentRef: "pay_999",
       paidAt: new Date("2026-03-10T12:04:00.000Z"),
-      idempotencyKey: "webhook-same-key",
       now: new Date("2026-03-10T12:04:00.000Z"),
     });
 
     const second = await sut.execute({
       tenantId: "tenant-01",
       externalRef: "checkout_same_key",
-      paymentRef: "different-payment",
+      paymentRef: "pay_999",
       paidAt: new Date("2026-03-10T12:20:00.000Z"),
-      idempotencyKey: "webhook-same-key",
       now: new Date("2026-03-10T12:20:00.000Z"),
     });
 
@@ -123,7 +118,6 @@ describe("Confirm Appointment When Paid Use Case", () => {
       externalRef: "checkout_other_payment",
       paymentRef: "pay_another",
       paidAt: new Date("2026-03-10T12:30:00.000Z"),
-      idempotencyKey: "webhook-pay_another",
       now: new Date("2026-03-10T12:30:00.000Z"),
     });
 

@@ -41,8 +41,6 @@ export class Appointment {
     public externalRef: string | undefined,
     public paymentRef: string | undefined,
     public paidAt: Date | undefined,
-    public creationIdempotencyKey: string | undefined,
-    public paymentConfirmationKey: string | undefined,
     public readonly createdAt: Date,
     public updatedAt: Date,
     public version: number,
@@ -97,12 +95,10 @@ export class Appointment {
   confirmWhenPaid({
     paymentRef,
     paidAt,
-    idempotencyKey,
     now = new Date(),
   }: {
     paymentRef: string;
     paidAt: Date;
-    idempotencyKey?: string;
     now?: Date;
   }): void {
     const normalizedPaymentRef = Appointment.normalizeOptionalString(paymentRef);
@@ -129,31 +125,11 @@ export class Appointment {
     this.paidAt = new Date(paidAt.getTime());
     this.status = "CONFIRMED";
     this.holdExpiresAt = undefined;
-    this.paymentConfirmationKey =
-      Appointment.normalizeOptionalString(idempotencyKey) ??
-      this.paymentConfirmationKey;
 
     this.recordEvent(
       new AppointmentConfirmedEvent(this.id, this.tenantId, normalizedPaymentRef),
     );
     this.touch();
-  }
-
-  registerPaymentConfirmationKey(key: string): boolean {
-    const normalizedKey = Appointment.normalizeOptionalString(key);
-
-    if (!normalizedKey) {
-      throw new AppointmentValidationError("idempotencyKey is mandatory.");
-    }
-
-    if (this.paymentConfirmationKey === normalizedKey) {
-      return false;
-    }
-
-    this.paymentConfirmationKey = normalizedKey;
-    this.touch();
-
-    return true;
   }
 
   cancel(details?: { reason?: string; cancelledBy?: string }): void {
@@ -254,7 +230,6 @@ export class Appointment {
       this.holdExpiresAt = new Date(holdExpiresAt.getTime());
       this.paymentRef = undefined;
       this.paidAt = undefined;
-      this.paymentConfirmationKey = undefined;
     }
 
     const previousRoomId = this.roomId;
@@ -408,8 +383,6 @@ export class Appointment {
       props.paidAt
         ? Appointment.cloneDate(props.paidAt, "paidAt must be a valid Date.")
         : undefined,
-      Appointment.normalizeOptionalString(props.creationIdempotencyKey),
-      Appointment.normalizeOptionalString(props.paymentConfirmationKey),
       createdAt,
       updatedAt,
       props.version ?? 0,

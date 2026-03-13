@@ -69,33 +69,7 @@ export class InMemoryAppointmentRepository implements AppointmentRepository {
       this.items.find(
         (appointment) =>
           appointment.externalRef === externalRef && appointment.tenantId === tenantId,
-      ) ?? null
-    );
-  }
-
-  async findByCreationIdempotencyKey(
-    tenantId: string,
-    idempotencyKey: string,
-  ): Promise<Appointment | null> {
-    return (
-      this.items.find(
-        (appointment) =>
-          appointment.tenantId === tenantId &&
-          appointment.creationIdempotencyKey === idempotencyKey,
-      ) ?? null
-    );
-  }
-
-  async findByPaymentConfirmationKey(
-    tenantId: string,
-    idempotencyKey: string,
-  ): Promise<Appointment | null> {
-    return (
-      this.items.find(
-        (appointment) =>
-          appointment.tenantId === tenantId &&
-          appointment.paymentConfirmationKey === idempotencyKey,
-      ) ?? null
+        ) ?? null
     );
   }
 

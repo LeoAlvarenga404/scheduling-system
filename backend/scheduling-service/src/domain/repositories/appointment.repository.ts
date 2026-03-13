@@ -19,14 +19,6 @@ export abstract class AppointmentRepository {
     externalRef: string,
     tenantId: string,
   ): Promise<Appointment | null>;
-  abstract findByCreationIdempotencyKey(
-    tenantId: string,
-    idempotencyKey: string,
-  ): Promise<Appointment | null>;
-  abstract findByPaymentConfirmationKey(
-    tenantId: string,
-    idempotencyKey: string,
-  ): Promise<Appointment | null>;
   abstract findConflictingAppointments(
     params: AppointmentConflictCheckParams,
   ): Promise<AppointmentConflictResult>;

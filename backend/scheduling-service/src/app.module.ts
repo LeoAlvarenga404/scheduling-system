@@ -1,28 +1,20 @@
 import { Module } from "@nestjs/common";
-import { DomainEventPublisher } from "./application/events/domain-event-publisher";
-import { AppointmentRepository } from "./domain/repositories/appointment.repository";
-import { PrismaModule } from "./infrastructure/database/prisma/prisma.module";
-import { PrismaAppointmentRepository } from "./infrastructure/database/prisma/repositories/prisma-appointment.repository";
-import { RabbitMqDomainEventPublisher } from "./infrastructure/messaging/rabbitmq/rabbitmq-domain-event.publisher";
-import { AppController } from "./app.controller";
-import { AppService } from "./app.service";
+import { ConfigModule } from "@nestjs/config";
+
+import { SchedulingModule } from "./scheduling.module";
 
 @Module({
-  imports: [PrismaModule],
-  controllers: [AppController],
-  providers: [
-    AppService,
-    PrismaAppointmentRepository,
-    RabbitMqDomainEventPublisher,
-    {
-      provide: AppointmentRepository,
-      useExisting: PrismaAppointmentRepository,
-    },
-    {
-      provide: DomainEventPublisher,
-      useExisting: RabbitMqDomainEventPublisher,
-    },
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: [
+        `.env.${process.env.NODE_ENV ?? "development"}.local`,
+        `.env.${process.env.NODE_ENV ?? "development"}`,
+        ".env.local",
+        ".env",
+      ],
+    }),
+    SchedulingModule,
   ],
-  exports: [AppointmentRepository, DomainEventPublisher],
 })
 export class AppModule {}

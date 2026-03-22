@@ -1,0 +1,37 @@
+# Ignorar arquivos temporários
+*.tmp
+*.swp
+*.bak
+
+# Ignorar diretórios de compilação
+build/
+dist/
+
+# Ignorar arquivos de log
+*.log
+
+# Ignorar dependências de pacotes
+node_modules/
+vendor/
+*.lock
+
+
+# Ignorar arquivos de configuração específicos do editor
+.vscode/
+.idea/
+
+# Ignorar arquivos de cache
+.cache/
+*.cache
+
+# Ignorar arquivos específicos do sistema operacional
+.DS_Store
+Thumbs.db
+
+# Ignorar arquivos de teste
+test/
+tests/
+*.test.js
+*.spec.js
+
+

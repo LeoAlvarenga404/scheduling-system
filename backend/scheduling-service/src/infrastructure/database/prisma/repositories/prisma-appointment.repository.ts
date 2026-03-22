@@ -16,6 +16,7 @@ import {
   prismaAppointmentInclude,
 } from "../mappers/prisma-appointment.mapper";
 import { PrismaService } from "../prisma.service";
+import { randomUUID } from "node:crypto";
 
 const ACTIVE_STATUS: PrismaAppointmentStatus[] = [
   PrismaAppointmentStatus.HOLD,
@@ -56,6 +57,7 @@ export class PrismaAppointmentRepository implements AppointmentRepository {
       }
 
       await this.replaceParticipants(tx, appointment);
+      await this.persistOutboxEvents(tx, appointment);
     });
   }
 
@@ -281,6 +283,7 @@ export class PrismaAppointmentRepository implements AppointmentRepository {
     });
 
     await this.replaceParticipants(client, appointment);
+    await this.persistOutboxEvents(client, appointment);
   }
 
   private async replaceParticipants(
@@ -301,5 +304,31 @@ export class PrismaAppointmentRepository implements AppointmentRepository {
         skipDuplicates: true,
       });
     }
+  }
+
+  private async persistOutboxEvents(
+    client: PrismaDbClient,
+    appointment: Appointment,
+  ): Promise<void> {
+    const events = appointment.pullDomainEvents();
+    if (events.length === 0) {
+      return;
+    }
+
+    const outboxRows = events.map((event) => ({
+      id: randomUUID(),
+      tenantId: appointment.tenantId,
+      aggregateType: "Appointment",
+      aggregateId: appointment.id,
+      eventType: event.eventName,
+      payload: JSON.parse(JSON.stringify(event)) as Prisma.InputJsonValue,
+      occurredAt: event.occurredAt,
+      correlationId: (event as any).correlationId ?? randomUUID(),
+      version: "1.0",
+    }));
+
+    await client.outboxEvent.createMany({
+      data: outboxRows,
+    });
   }
 }

@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum AppointmentStatus {
@@ -21,12 +22,20 @@ model Appointment {
   startAt                   DateTime
   endAt                     DateTime
   status                    AppointmentStatus
+  serviceId                 String
+  amount                    Int
+  currency                  String                  @default("BRL")
   responsibleProfessionalId String
   customerId                String?
   holdExpiresAt             DateTime?
   externalRef               String?
   paymentRef                String?
   paidAt                    DateTime?
+  confirmedAt               DateTime?
+  cancelledAt               DateTime?
+  cancelledBy               String?
+  cancelReason              String?
+  completedAt               DateTime?
   metadata                  Json?
   version                   Int                     @default(0)
   createdAt                 DateTime                @default(now())
@@ -50,4 +59,30 @@ model AppointmentParticipant {
   @@id([appointmentId, professionalId])
   @@index([professionalId])
   @@map("appointment_participants")
+}
+
+model OutboxEvent {
+  id            String    @id
+  tenantId      String
+  aggregateType String
+  aggregateId   String
+  eventType     String
+  payload       Json
+  occurredAt    DateTime
+  publishedAt   DateTime?
+  correlationId String
+  version       String    @default("1.0")
+  createdAt     DateTime  @default(now())
+
+  @@index([publishedAt])
+  @@map("outbox_events")
+}
+
+model ProcessedEvent {
+  eventId     String    @id
+  tenantId    String
+  eventType   String
+  processedAt DateTime  @default(now())
+
+  @@map("processed_events")
 }

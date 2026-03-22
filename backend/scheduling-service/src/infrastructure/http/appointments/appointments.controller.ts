@@ -1,27 +1,28 @@
 import {
-  BadRequestException,
   Controller,
   Get,
+  Post,
   Inject,
-  NotFoundException,
   Param,
   Query,
+  Body,
+  Headers,
 } from "@nestjs/common";
 import { GetAppointmentByIdUseCase } from "src/application/use-cases/get-appointment-by-id.usecase";
 import { ListAppointmentsUseCase } from "src/application/use-cases/list-appointments.usecase";
-import type { AppointmentStatus } from "src/domain/entities/appointment.types";
+import { CreateHoldAppointmentUseCase } from "src/application/use-cases/create-hold-appointment.usecase";
+import { CancelAppointmentUseCase } from "src/application/use-cases/cancel-appointment.usecase";
+import { RescheduleAppointmentUseCase } from "src/application/use-cases/reschedule-appointment.usecase";
+import { CompleteAppointmentUseCase } from "src/application/use-cases/complete-appointment.usecase";
+
 import { AppointmentHttpMapper } from "./appointment-http.mapper";
 import type { AppointmentResponseDto } from "./appointment-response.dto";
+import { ListAppointmentsQueryDto } from "./list-appointments.query.dto";
+import { GetAppointmentQueryDto } from "./get-appointment.query.dto";
 
-type QueryValue = string | string[] | undefined;
-
-const APPOINTMENT_STATUSES: AppointmentStatus[] = [
-  "HOLD",
-  "CONFIRMED",
-  "CANCELLED",
-  "EXPIRED",
-  "COMPLETED",
-];
+import { CreateHoldAppointmentDto } from "./create-hold-appointment.dto";
+import { CancelAppointmentDto } from "./cancel-appointment.dto";
+import { RescheduleAppointmentDto } from "./reschedule-appointment.dto";
 
 @Controller("appointments")
 export class AppointmentsController {
@@ -30,30 +31,32 @@ export class AppointmentsController {
     private readonly getAppointmentByIdUseCase: GetAppointmentByIdUseCase,
     @Inject(ListAppointmentsUseCase)
     private readonly listAppointmentsUseCase: ListAppointmentsUseCase,
+    @Inject(CreateHoldAppointmentUseCase)
+    private readonly createHoldAppointmentUseCase: CreateHoldAppointmentUseCase,
+    @Inject(CancelAppointmentUseCase)
+    private readonly cancelAppointmentUseCase: CancelAppointmentUseCase,
+    @Inject(RescheduleAppointmentUseCase)
+    private readonly rescheduleAppointmentUseCase: RescheduleAppointmentUseCase,
+    @Inject(CompleteAppointmentUseCase)
+    private readonly completeAppointmentUseCase: CompleteAppointmentUseCase,
   ) {}
 
   @Get()
   async list(
-    @Query() query: Record<string, QueryValue>,
+    @Query() query: ListAppointmentsQueryDto,
   ): Promise<{ appointments: AppointmentResponseDto[] }> {
     const response = await this.listAppointmentsUseCase.execute({
-      tenantId: this.requireSingleString(query.tenantId, "tenantId"),
-      dateFrom: this.parseOptionalDate(query.dateFrom, "dateFrom"),
-      dateTo: this.parseOptionalDate(query.dateTo, "dateTo"),
-      roomId: this.parseOptionalString(query.roomId, "roomId"),
-      responsibleProfessionalId: this.parseOptionalString(
-        query.responsibleProfessionalId,
-        "responsibleProfessionalId",
-      ),
-      participantProfessionalId: this.parseOptionalString(
-        query.participantProfessionalId,
-        "participantProfessionalId",
-      ),
-      status: this.parseOptionalStatus(query.status),
+      tenantId: query.tenantId,
+      dateFrom: query.dateFrom ? new Date(query.dateFrom) : undefined,
+      dateTo: query.dateTo ? new Date(query.dateTo) : undefined,
+      roomId: query.roomId,
+      responsibleProfessionalId: query.responsibleProfessionalId,
+      participantProfessionalId: query.participantProfessionalId,
+      status: query.status,
     });
 
     if (response.isLeft()) {
-      throw new BadRequestException(response.value.message);
+      throw response.value;
     }
 
     return {
@@ -66,80 +69,92 @@ export class AppointmentsController {
   @Get(":appointmentId")
   async getById(
     @Param("appointmentId") appointmentId: string,
-    @Query("tenantId") tenantId: string,
+    @Query() query: GetAppointmentQueryDto,
   ): Promise<AppointmentResponseDto> {
     const response = await this.getAppointmentByIdUseCase.execute({
-      appointmentId: this.requireNonEmptyString(appointmentId, "appointmentId"),
-      tenantId: this.requireNonEmptyString(tenantId, "tenantId"),
+      appointmentId: appointmentId,
+      tenantId: query.tenantId,
     });
 
     if (response.isLeft()) {
-      throw new NotFoundException(response.value.message);
+      throw response.value;
     }
 
     return AppointmentHttpMapper.toResponse(response.value.appointment);
   }
 
-  private parseOptionalString(
-    value: QueryValue,
-    fieldName: string,
-  ): string | undefined {
-    if (value === undefined) {
-      return undefined;
+  @Post("hold")
+  async createHold(
+    @Body() dto: CreateHoldAppointmentDto,
+    @Headers("x-tenant-id") tenantId: string,
+  ): Promise<AppointmentResponseDto> {
+    const response = await this.createHoldAppointmentUseCase.execute({
+      ...dto,
+      tenantId,
+      startAt: new Date(dto.startAt),
+      endAt: new Date(dto.endAt),
+    });
+
+    if (response.isLeft()) {
+      throw response.value;
     }
 
-    return this.requireSingleString(value, fieldName);
+    return AppointmentHttpMapper.toResponse(response.value.appointment);
   }
 
-  private parseOptionalDate(
-    value: QueryValue,
-    fieldName: string,
-  ): Date | undefined {
-    if (value === undefined) {
-      return undefined;
+  @Post(":appointmentId/cancel")
+  async cancel(
+    @Param("appointmentId") appointmentId: string,
+    @Body() dto: CancelAppointmentDto,
+    @Headers("x-tenant-id") tenantId: string,
+    @Headers("x-user-id") userId?: string,
+  ): Promise<void> {
+    const response = await this.cancelAppointmentUseCase.execute({
+      appointmentId,
+      tenantId,
+      reason: dto.cancelReason,
+      cancelledBy: userId,
+    });
+
+    if (response.isLeft()) {
+      throw response.value;
     }
-
-    const rawValue = this.requireSingleString(value, fieldName);
-    const parsedDate = new Date(rawValue);
-
-    if (Number.isNaN(parsedDate.getTime())) {
-      throw new BadRequestException(`${fieldName} must be a valid date.`);
-    }
-
-    return parsedDate;
   }
 
-  private parseOptionalStatus(
-    value: QueryValue,
-  ): AppointmentStatus | undefined {
-    if (value === undefined) {
-      return undefined;
+  @Post(":appointmentId/reschedule")
+  async reschedule(
+    @Param("appointmentId") appointmentId: string,
+    @Body() dto: RescheduleAppointmentDto,
+    @Headers("x-tenant-id") tenantId: string,
+  ): Promise<AppointmentResponseDto> {
+    const response = await this.rescheduleAppointmentUseCase.execute({
+      appointmentId,
+      tenantId,
+      newStartAt: new Date(dto.newSlotStart),
+      newEndAt: new Date(dto.newSlotEnd),
+      newResponsibleProfessionalId: dto.professionalId,
+      newRoomId: dto.roomId,
+    });
+
+    if (response.isLeft()) {
+      throw response.value;
     }
 
-    const normalizedValue = this.requireSingleString(value, "status");
-
-    if (!APPOINTMENT_STATUSES.includes(normalizedValue as AppointmentStatus)) {
-      throw new BadRequestException(
-        `status must be one of: ${APPOINTMENT_STATUSES.join(", ")}.`,
-      );
-    }
-
-    return normalizedValue as AppointmentStatus;
+    return AppointmentHttpMapper.toResponse(response.value.appointment);
   }
 
-  private requireSingleString(value: QueryValue, fieldName: string): string {
-    if (Array.isArray(value)) {
-      throw new BadRequestException(`${fieldName} must be provided only once.`);
+  @Post(":appointmentId/complete")
+  async complete(
+    @Param("appointmentId") appointmentId: string,
+    @Headers("x-tenant-id") tenantId: string,
+  ): Promise<void> {
+    const response = await this.completeAppointmentUseCase.execute({
+      appointmentId,
+      tenantId,
+    });
+
+    if (response.isLeft()) {
+      throw response.value;
     }
-
-    return this.requireNonEmptyString(value, fieldName);
-  }
-
-  private requireNonEmptyString(value: unknown, fieldName: string): string {
-    if (typeof value !== "string" || value.trim().length === 0) {
-      throw new BadRequestException(`${fieldName} must be a non-empty string.`);
-    }
-
-    return value.trim();
   }
 }

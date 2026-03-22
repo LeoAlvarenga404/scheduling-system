@@ -1,4 +1,5 @@
 import type { Provider } from "@nestjs/common";
+import { RedisService } from "./infrastructure/database/redis/redis.service";
 import { DomainEventPublisher } from "./application/events/domain-event-publisher";
 import { CancelAppointmentUseCase } from "./application/use-cases/cancel-appointment.usecase";
 import { CompleteAppointmentUseCase } from "./application/use-cases/complete-appointment.usecase";
@@ -71,8 +72,9 @@ export const schedulingUseCaseProviders: Provider[] = [
     useFactory: (
       appointmentRepository: AppointmentRepository,
       eventPublisher: DomainEventPublisher,
-    ) => new ExpireHoldsUseCase(appointmentRepository, eventPublisher),
-    inject: [AppointmentRepository, DomainEventPublisher],
+      redisService: RedisService,
+    ) => new ExpireHoldsUseCase(appointmentRepository, redisService, eventPublisher),
+    inject: [AppointmentRepository, DomainEventPublisher, RedisService],
   },
   {
     provide: GetAppointmentByIdUseCase,

@@ -16,6 +16,9 @@ export function makeAppointment(props: MakeAppointmentProps = {}): Appointment {
   const appointment = Appointment.create({
     tenantId: props.tenantId ?? "tenant-01",
     roomId: props.roomId ?? "room-101",
+    serviceId: props.serviceId ?? "srv-101",
+    amount: props.amount ?? 15000,
+    currency: props.currency ?? "BRL",
     startAt: props.startAt ?? new Date("2026-03-10T13:00:00.000Z"),
     endAt: props.endAt ?? new Date("2026-03-10T13:45:00.000Z"),
     status,

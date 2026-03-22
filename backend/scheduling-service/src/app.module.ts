@@ -1,7 +1,9 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { ScheduleModule } from "@nestjs/schedule";
 
 import { SchedulingModule } from "./scheduling.module";
+import { RedisModule } from "./infrastructure/database/redis/redis.module";
 
 @Module({
   imports: [
@@ -14,6 +16,8 @@ import { SchedulingModule } from "./scheduling.module";
         ".env",
       ],
     }),
+    ScheduleModule.forRoot(),
+    RedisModule,
     SchedulingModule,
   ],
 })

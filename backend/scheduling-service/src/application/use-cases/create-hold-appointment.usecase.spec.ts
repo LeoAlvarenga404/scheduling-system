@@ -19,6 +19,8 @@ describe("Create Hold Appointment Use Case", () => {
     const response = await sut.execute({
       tenantId: "tenant-01",
       roomId: "room-101",
+      serviceId: "srv-01",
+      amount: 15000,
       startAt: new Date("2026-03-10T13:00:00.000Z"),
       endAt: new Date("2026-03-10T13:45:00.000Z"),
       responsibleProfessionalId: "prof-10",
@@ -47,6 +49,8 @@ describe("Create Hold Appointment Use Case", () => {
     const first = await sut.execute({
       tenantId: "tenant-01",
       roomId: "room-101",
+      serviceId: "srv-01",
+      amount: 15000,
       startAt: new Date("2026-03-10T13:00:00.000Z"),
       endAt: new Date("2026-03-10T13:45:00.000Z"),
       responsibleProfessionalId: "prof-10",
@@ -57,6 +61,8 @@ describe("Create Hold Appointment Use Case", () => {
     const second = await sut.execute({
       tenantId: "tenant-01",
       roomId: "room-102",
+      serviceId: "srv-01",
+      amount: 15000,
       startAt: new Date("2026-03-10T13:00:00.000Z"),
       endAt: new Date("2026-03-10T13:45:00.000Z"),
       responsibleProfessionalId: "prof-11",
@@ -73,6 +79,8 @@ describe("Create Hold Appointment Use Case", () => {
     await sut.execute({
       tenantId: "tenant-01",
       roomId: "room-101",
+      serviceId: "srv-01",
+      amount: 15000,
       startAt: new Date("2026-03-10T13:00:00.000Z"),
       endAt: new Date("2026-03-10T13:45:00.000Z"),
       responsibleProfessionalId: "prof-10",
@@ -83,6 +91,8 @@ describe("Create Hold Appointment Use Case", () => {
     const response = await sut.execute({
       tenantId: "tenant-01",
       roomId: "room-102",
+      serviceId: "srv-01",
+      amount: 15000,
       startAt: new Date("2026-03-10T13:00:00.000Z"),
       endAt: new Date("2026-03-10T13:45:00.000Z"),
       responsibleProfessionalId: "prof-10",
@@ -98,6 +108,8 @@ describe("Create Hold Appointment Use Case", () => {
     await sut.execute({
       tenantId: "tenant-01",
       roomId: "room-101",
+      serviceId: "srv-01",
+      amount: 15000,
       startAt: new Date("2026-03-10T13:00:00.000Z"),
       endAt: new Date("2026-03-10T13:45:00.000Z"),
       responsibleProfessionalId: "prof-10",
@@ -109,6 +121,8 @@ describe("Create Hold Appointment Use Case", () => {
     const response = await sut.execute({
       tenantId: "tenant-01",
       roomId: "room-103",
+      serviceId: "srv-01",
+      amount: 15000,
       startAt: new Date("2026-03-10T13:15:00.000Z"),
       endAt: new Date("2026-03-10T14:00:00.000Z"),
       responsibleProfessionalId: "prof-20",

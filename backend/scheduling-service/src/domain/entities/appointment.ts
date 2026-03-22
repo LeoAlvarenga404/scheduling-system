@@ -31,6 +31,9 @@ export class Appointment {
     public readonly id: string,
     public readonly tenantId: string,
     public roomId: string,
+    public serviceId: string,
+    public amount: number,
+    public currency: string,
     public startAt: Date,
     public endAt: Date,
     public status: AppointmentStatus,
@@ -41,6 +44,11 @@ export class Appointment {
     public externalRef: string | undefined,
     public paymentRef: string | undefined,
     public paidAt: Date | undefined,
+    public confirmedAt: Date | undefined,
+    public cancelledAt: Date | undefined,
+    public cancelledBy: string | undefined,
+    public cancelReason: string | undefined,
+    public completedAt: Date | undefined,
     public readonly createdAt: Date,
     public updatedAt: Date,
     public version: number,
@@ -84,6 +92,7 @@ export class Appointment {
     }
 
     this.status = "CONFIRMED";
+    this.confirmedAt = new Date(now.getTime());
     this.holdExpiresAt = undefined;
 
     this.recordEvent(
@@ -124,6 +133,7 @@ export class Appointment {
     this.paymentRef = normalizedPaymentRef;
     this.paidAt = new Date(paidAt.getTime());
     this.status = "CONFIRMED";
+    this.confirmedAt = new Date(now.getTime());
     this.holdExpiresAt = undefined;
 
     this.recordEvent(
@@ -144,14 +154,14 @@ export class Appointment {
     }
 
     this.status = "CANCELLED";
+    this.cancelledAt = new Date();
     this.holdExpiresAt = undefined;
 
-    if (details?.reason || details?.cancelledBy) {
-      this.metadata = {
-        ...(this.metadata ?? {}),
-        cancelledReason: details.reason,
-        cancelledBy: details.cancelledBy,
-      };
+    if (details?.reason) {
+      this.cancelReason = details.reason;
+    }
+    if (details?.cancelledBy) {
+      this.cancelledBy = details.cancelledBy;
     }
 
     this.recordEvent(
@@ -177,6 +187,8 @@ export class Appointment {
     }
 
     this.status = "COMPLETED";
+    this.completedAt = new Date();
+    
     this.recordEvent(new AppointmentCompletedEvent(this.id, this.tenantId));
     this.touch();
   }
@@ -335,6 +347,16 @@ export class Appointment {
       props.roomId,
       "roomId is mandatory.",
     );
+    const serviceId = Appointment.requireNonEmptyString(
+      props.serviceId,
+      "serviceId is mandatory.",
+    );
+    const amount = props.amount;
+    if (typeof amount !== 'number' || amount < 0) {
+      throw new AppointmentValidationError("amount must be a positive number.");
+    }
+    const currency = Appointment.normalizeOptionalString(props.currency) ?? "BRL";
+    
     const responsibleProfessionalId = Appointment.requireNonEmptyString(
       props.responsibleProfessionalId,
       "responsibleProfessionalId is mandatory.",
@@ -366,11 +388,18 @@ export class Appointment {
     const updatedAt = props.updatedAt
       ? Appointment.cloneDate(props.updatedAt, "updatedAt must be a valid Date.")
       : createdAt;
+      
+    const confirmedAt = props.confirmedAt ? Appointment.cloneDate(props.confirmedAt, "confirmedAt must be a valid Date.") : undefined;
+    const cancelledAt = props.cancelledAt ? Appointment.cloneDate(props.cancelledAt, "cancelledAt must be a valid Date.") : undefined;
+    const completedAt = props.completedAt ? Appointment.cloneDate(props.completedAt, "completedAt must be a valid Date.") : undefined;
 
     const appointment = new Appointment(
       Appointment.normalizeOptionalString(props.id) ?? randomUUID(),
       tenantId,
       roomId,
+      serviceId,
+      amount,
+      currency,
       new Date(props.startAt.getTime()),
       new Date(props.endAt.getTime()),
       props.status,
@@ -383,6 +412,11 @@ export class Appointment {
       props.paidAt
         ? Appointment.cloneDate(props.paidAt, "paidAt must be a valid Date.")
         : undefined,
+      confirmedAt,
+      cancelledAt,
+      Appointment.normalizeOptionalString(props.cancelledBy),
+      Appointment.normalizeOptionalString(props.cancelReason),
+      completedAt,
       createdAt,
       updatedAt,
       props.version ?? 0,
@@ -424,7 +458,7 @@ export class Appointment {
     }
   }
 
-  private static requireNonEmptyString(value: string, message: string): string {
+  private static requireNonEmptyString(value: string | undefined, message: string): string {
     const normalizedValue = Appointment.normalizeOptionalString(value);
 
     if (!normalizedValue) {
@@ -434,7 +468,7 @@ export class Appointment {
     return normalizedValue;
   }
 
-  private static normalizeOptionalString(value?: string): string | undefined {
+  private static normalizeOptionalString(value?: string | null): string | undefined {
     if (typeof value !== "string") {
       return undefined;
     }

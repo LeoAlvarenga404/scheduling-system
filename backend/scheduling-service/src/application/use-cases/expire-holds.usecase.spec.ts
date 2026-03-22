@@ -4,16 +4,22 @@ import { AppointmentExpiredEvent } from "src/domain/events/appointment-expired.e
 import { InMemoryAppointmentRepository } from "src/test/repositories/in-memory-appointment.repository";
 import { makeAppointment } from "src/test/factories/make-appointment";
 import { InMemoryDomainEventPublisher } from "src/test/publishers/in-memory-domain-event.publisher";
+import { vi } from "vitest";
 
 let sut: ExpireHoldsUseCase;
 let appointmentRepository: InMemoryAppointmentRepository;
 let eventPublisher: InMemoryDomainEventPublisher;
+let redisService: any;
 
 describe("Expire Holds Use Case", () => {
   beforeEach(() => {
     appointmentRepository = new InMemoryAppointmentRepository();
     eventPublisher = new InMemoryDomainEventPublisher();
-    sut = new ExpireHoldsUseCase(appointmentRepository, eventPublisher);
+    redisService = {
+      acquireLock: vi.fn().mockResolvedValue(true),
+      releaseLock: vi.fn().mockResolvedValue(undefined),
+    };
+    sut = new ExpireHoldsUseCase(appointmentRepository, redisService, eventPublisher);
   });
 
   it("should expire overdue holds", async () => {

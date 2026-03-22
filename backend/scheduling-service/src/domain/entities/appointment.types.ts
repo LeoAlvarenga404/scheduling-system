@@ -13,6 +13,9 @@ export interface AppointmentProps {
   id?: string;
   tenantId: string;
   roomId: string;
+  serviceId: string;
+  amount: number;
+  currency?: string;
   startAt: Date;
   endAt: Date;
   status: AppointmentStatus;
@@ -23,6 +26,11 @@ export interface AppointmentProps {
   externalRef?: string;
   paymentRef?: string;
   paidAt?: Date;
+  confirmedAt?: Date;
+  cancelledAt?: Date;
+  cancelledBy?: string;
+  cancelReason?: string;
+  completedAt?: Date;
   createdAt?: Date;
   updatedAt?: Date;
   version?: number;

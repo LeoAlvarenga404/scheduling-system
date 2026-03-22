@@ -11,6 +11,9 @@ import { publishAppointmentEvents } from "src/application/events/publish-appoint
 export interface CreateHoldAppointmentRequest {
   tenantId: string;
   roomId: string;
+  serviceId: string;
+  amount: number;
+  currency?: string;
   startAt: Date;
   endAt: Date;
   responsibleProfessionalId: string;
@@ -40,6 +43,9 @@ export class CreateHoldAppointmentUseCase
   async execute({
     tenantId,
     roomId,
+    serviceId,
+    amount,
+    currency,
     startAt,
     endAt,
     responsibleProfessionalId,
@@ -68,6 +74,9 @@ export class CreateHoldAppointmentUseCase
       appointment = Appointment.create({
         tenantId,
         roomId,
+        serviceId,
+        amount,
+        currency,
         startAt,
         endAt,
         status: "HOLD",

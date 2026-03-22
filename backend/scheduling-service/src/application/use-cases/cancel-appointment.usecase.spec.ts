@@ -31,7 +31,7 @@ describe("Cancel Appointment Use Case", () => {
 
     expect(response.isRight()).toBe(true);
     expect(appointment.status).toBe("CANCELLED");
-    expect(appointment.metadata?.cancelledBy).toBe("user-01");
+    expect(appointment.cancelledBy).toBe("user-01");
     expect(eventPublisher.publishedEvents).toHaveLength(1);
     expect(eventPublisher.publishedEvents[0]).toBeInstanceOf(
       AppointmentCancelledEvent,

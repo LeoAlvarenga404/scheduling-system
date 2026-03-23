@@ -1,0 +1,27 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: tenant-service
+    url: http://tenant-service-api:3001
+    routes:
+      - name: tenants-route
+        paths:
+          - /tenants
+          - /internal/tenants
+        strip_path: false
+
+  - name: scheduling-service
+    url: http://scheduling-service-api:3000
+    routes:
+      - name: appointments-route
+        paths:
+          - /appointments
+        strip_path: false
+
+plugins:
+  - name: correlation-id
+    config:
+      header_name: x-correlation-id
+      generator: uuid#counter
+      echo_downstream: true

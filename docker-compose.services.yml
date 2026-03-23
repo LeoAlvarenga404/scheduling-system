@@ -8,19 +8,21 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://scheduling:scheduling@postgres:5432/scheduling_service?schema=public
-      RABBITMQ_URL: amqp://rabbitmq:5672
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/scheduling_service?schema=public
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       RABBITMQ_EXCHANGE: scheduling.events
       REDIS_URL: redis://redis:6379
     ports:
       - "3000:3000"
     restart: unless-stopped
+    networks:
+      - app-network
 
   tenant-service:
     build:
@@ -31,16 +33,23 @@ services:
       postgres:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_URL: postgresql://scheduling:scheduling@postgres:5432/tenant_service?schema=public
-      RABBITMQ_URL: amqp://rabbitmq:5672
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/tenant_service?schema=public
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       RABBITMQ_EXCHANGE: clinica.topic
       REDIS_URL: redis://redis:6379
     ports:
       - "3001:3001"
     restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    name: app-network
+    driver: bridge

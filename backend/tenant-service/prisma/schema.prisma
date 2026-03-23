@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  PENDING_SETUP
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
+model Tenant {
+  id                   String               @id
+  name                 String
+  slug                 String               @unique
+  email                String
+  phone                String
+  document             String               @unique
+  status               TenantStatus         @default(PENDING_SETUP)
+  activeSubscriptionId String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  subscriptions        TenantSubscription[]
+
+  @@index([status])
+  @@map("tenants")
+}
+
+model SubscriptionPlan {
+  id                      String               @id
+  name                    String
+  maxAppointmentsPerMonth Int?
+  maxProfessionals        Int?
+  maxRooms                Int?
+  features                String[]
+  isActive                Boolean              @default(true)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  subscriptions           TenantSubscription[]
+
+  @@map("subscription_plans")
+}
+
+model TenantSubscription {
+  id             String             @id
+  tenantId       String
+  planId         String
+  status         SubscriptionStatus @default(ACTIVE)
+  startedAt      DateTime           @default(now())
+  expiresAt      DateTime?
+  suspendedAt    DateTime?
+  cancelledAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  plan           SubscriptionPlan   @relation(fields: [planId], references: [id])
+
+  @@index([tenantId])
+  @@index([planId])
+  @@map("tenant_subscriptions")
+}
+
+model OutboxEvent {
+  id            String    @id
+  tenantId      String
+  aggregateType String
+  aggregateId   String
+  eventType     String
+  payload       Json
+  occurredAt    DateTime
+  publishedAt   DateTime?
+  correlationId String
+  version       String    @default("1.0")
+  createdAt     DateTime  @default(now())
+
+  @@index([publishedAt])
+  @@map("outbox_events")
+}
+
+model ProcessedEvent {
+  eventId     String    @id
+  tenantId    String
+  eventType   String
+  processedAt DateTime  @default(now())
+
+  @@map("processed_events")
+}

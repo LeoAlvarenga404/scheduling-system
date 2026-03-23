@@ -19,6 +19,7 @@ FROM oven/bun:1.2.22-alpine AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NODE_PATH=dist
 
 COPY --from=build /app/package.json /app/bun.lock ./
 COPY --from=build /app/node_modules ./node_modules
@@ -26,6 +27,6 @@ COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/dist ./dist
 
 USER bun
-EXPOSE 3000
+EXPOSE 3001
 
-CMD ["bun", "dist/main.js"]
+CMD ["bun", "dist/src/main.js"]

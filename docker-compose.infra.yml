@@ -8,7 +8,8 @@ services:
       POSTGRESQL_DATABASE: scheduling_service
     volumes:
       - postgres_data:/bitnami/postgresql
-      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./backend/tenant-service/infra/db/init.sql:/docker-entrypoint-initdb.d/01-tenant-service-init.sql:ro
+      - ./backend/scheduling-service/infra/db/init.sql:/docker-entrypoint-initdb.d/02-scheduling-service-init.sql:ro
     healthcheck:
       test:
         - CMD-SHELL

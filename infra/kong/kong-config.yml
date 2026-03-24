@@ -31,6 +31,21 @@ services:
           - PATCH
           - DELETE
 
+  - name: auth-service
+    url: http://auth-service-api:3004
+    routes:
+      - name: auth-route
+        paths:
+          - /api/v1/auth
+          - /.well-known/jwks.json
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+
 plugins:
   - name: correlation-id
     config:
